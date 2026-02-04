@@ -23,7 +23,7 @@ function updateQualityMenu() {
         let displayName = q.name;
         if (displayName.includes('source') || displayName.includes('Source')) displayName = 'Source';
         else if (q.resolution) displayName = q.resolution.split('x')[1] + 'p';
-        return `<button class="control-text-btn quality-item ${i === currentQualityIndex ? 'active' : ''}" style="display:block; width:100%; text-align:left;" data-index="${i}">${displayName}</button>`;
+        return `<button class="quality-item ${i === currentQualityIndex ? 'active' : ''}" data-index="${i}">${displayName}</button>`;
     }).join('');
 
     menu.querySelectorAll('.quality-item').forEach(item => {
@@ -259,6 +259,11 @@ function init() {
     // Enhancers need DOM to be ready
     VideoEnhancer.init();
     AudioEnhancer.init();
+
+    if (window.innerWidth > 1000) {
+        const app = elements.app();
+        if (app) app.classList.add('chat-visible');
+    }
 
     startStream(currentChannel);
 }
