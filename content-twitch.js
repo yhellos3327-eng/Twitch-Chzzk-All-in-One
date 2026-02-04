@@ -95,11 +95,20 @@
   }
 
   // 플레이어 페이지 열기
+  let isOpening = false;
+
   function openPlayer(channel) {
     if (!channel) {
       console.warn(LOG_PREFIX, 'No channel name to open');
       return;
     }
+
+    if (isOpening) {
+      console.log(LOG_PREFIX, 'Player open throttled');
+      return;
+    }
+    isOpening = true;
+    setTimeout(() => { isOpening = false; }, 1000);
 
     console.log(LOG_PREFIX, 'Opening player for:', channel);
 
@@ -107,7 +116,12 @@
       // 프록시 서버의 player 페이지 사용 (채팅 iframe 임베드 가능)
       const proxyUrl = settings?.twitch?.proxyUrl || 'https://rotten-kore-twitch-chzzk-all-in-one-6d9b3001.koyeb.app';
       const playerUrl = `${proxyUrl}?channel=${encodeURIComponent(channel)}`;
+
+      // 팝업 창으로 열기 (크기 지정) 또는 새 탭
+      // window.open(playerUrl, '_blank'); 
+      // 사용자 경험을 위해 팝업으로 열거나 새 탭으로 열기 선택 가능하게 하면 좋음. 일단 새 탭 유지.
       window.open(playerUrl, '_blank');
+
     } catch (e) {
       // Extension context invalidated - 페이지 새로고침 필요
       console.warn(LOG_PREFIX, 'Extension context invalidated, please refresh the page');

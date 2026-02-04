@@ -33,7 +33,7 @@ export const elements = {
     refreshChatBtn: () => document.getElementById('refresh-chat'),
     popoutChatBtn: () => document.getElementById('popout-chat'),
     sidebar: () => document.getElementById('sidebar'),
-    app: () => document.querySelector('.app'),
+    app: () => document.getElementById('player-container'),
 
     // Overlays
     loadingOverlay: () => document.getElementById('loading-overlay'),
