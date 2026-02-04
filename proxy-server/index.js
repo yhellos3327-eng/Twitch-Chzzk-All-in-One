@@ -185,6 +185,43 @@ async function getStreamToken(channel) {
   return data || { error: 'Failed to get token', details: lastError };
 }
 
+// Twitch 채널 메타데이터 획득 (GQL)
+async function getStreamMetadata(channel) {
+  try {
+    const body = {
+      query: `query StreamMetadata($login: String!) {
+        user(login: $login) {
+          displayName
+          profileImageURL(width: 70)
+          stream {
+            title
+            viewersCount
+            game { displayName }
+            type
+          }
+        }
+      }`,
+      variables: { login: channel }
+    };
+
+    const response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
+      method: 'POST',
+      headers: {
+        'Client-ID': TWITCH_CLIENT_ID,
+        'Content-Type': 'application/json',
+        'Device-ID': 'twitch-web-wall-mason',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = JSON.parse(response.body.toString());
+    return data.data?.user || null;
+  } catch (e) {
+    console.error('[Metadata] Error:', e.message);
+    return null;
+  }
+}
+
 // m3u8 playlist 획득
 async function getPlaylist(channel, token, sig) {
   const params = new URLSearchParams({
@@ -249,6 +286,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // 메타데이터 조회
+      const metadata = await getStreamMetadata(channel);
+
       const { value: token, signature: sig } = tokenData.data.streamPlaybackAccessToken;
       const playlist = await getPlaylist(channel, token, sig);
 
@@ -290,7 +330,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ channel, qualities, playlist: playlist.body }));
+      res.end(JSON.stringify({ channel, qualities, playlist: playlist.body, metadata }));
     } catch (error) {
       console.error(`[API Error]`, error.message);
       res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });

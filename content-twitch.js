@@ -161,6 +161,7 @@
     // 사이드바 요소 확인
     const sidebarItem = target.closest('[data-a-target="side-nav-card"]') ||
       target.closest('[class*="side-nav-card"]') ||
+      target.closest('[data-test-selector="followed-channel"]') ||
       target.closest('.tw-transition-group a[href]') ||
       target.closest('[data-a-id]');
 
@@ -194,7 +195,6 @@
       target.closest('.InjectLayout-sc-1i43xsx-0.fAYJcN.tw-image.tw-image-avatar') ||
       target.closest('[class*="ScTagContent"]') || // 태그 일반화
       target.closest('[class*="tw-image-avatar"]') || // 프사 일반화
-      target.closest('nav') || // 모든 네비게이션 태그 무시 (상단바, 사이드바 상단 등)
       target.closest('[data-test-selector="top-nav__browse-link"]') || // 탐색 링크 명시적 제외
       target.closest('[aria-label="탐색"]')) { // 탐색 라벨
       console.log(LOG_PREFIX, 'Click ignored due to exclude selector');

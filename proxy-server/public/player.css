@@ -1,728 +1,180 @@
-* {
+/* Reset & Base */
+:root {
+  --primary-color: #9147ff;
+  --primary-hover: #772ce8;
+  --bg-dark: #0e0e10;
+  --bg-menu: rgba(24, 24, 27, 0.95);
+  --text-main: #efeff1;
+  --text-muted: #adadb8;
+  --border-color: #303032;
+  --slider-bg: #3a3a3d;
+}
+
+body,
+html {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-}
-
-:root {
-  --bg-primary: #0e0e10;
-  --bg-secondary: #18181b;
-  --bg-tertiary: #1f1f23;
-  --text-primary: #efeff1;
-  --text-secondary: #adadb8;
-  --accent: #a855f7;
-  --accent-secondary: #6366f1;
-  --twitch-purple: #9146ff;
-  --success: #00f593;
-  --error: #eb0400;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  overflow: hidden;
-  height: 100vh;
-}
-
-.app {
-  display: grid;
-  grid-template-rows: 50px 1fr;
-  grid-template-columns: 1fr 340px;
-  height: 100vh;
-}
-
-/* Header */
-.header {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 16px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.logo-icon {
-  font-size: 20px;
-  color: var(--accent);
-}
-
-.logo-text {
-  font-size: 16px;
-  font-weight: 700;
-  background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.channel-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.channel-name {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.live-badge {
-  background: var(--error);
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.btn-icon:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-/* Player Container */
-.player-container {
-  background: #000;
-  position: relative;
-  overflow: hidden;
-}
-
-.player-wrapper {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  background-color: #000;
+  font-family: 'Inter', 'Roobert', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: var(--text-main);
+}
+
+/* Video Player Container */
+#player-container {
   position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 #video-player {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #000;
 }
 
-/* Player Overlay */
-.player-overlay {
+/* UI Overlay Controls */
+.controls-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  pointer-events: none;
+  /* Let clicks pass through to video */
+  transition: opacity 0.3s ease;
+}
+
+/* Top Bar (Channel Info) */
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 20px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.8);
-  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: auto;
   z-index: 10;
 }
 
-.player-overlay.error {
-  color: var(--error);
+/* Settings Button & Menu Container */
+.settings-container {
+  position: relative;
+  pointer-events: auto;
 }
 
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.error-icon {
-  font-size: 48px;
-}
-
-.error-message {
-  font-size: 16px;
-  color: var(--text-secondary);
-}
-
-.btn-retry {
-  background: var(--accent);
-  color: white;
+.icon-btn {
+  background: transparent;
   border: none;
-  padding: 10px 24px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: opacity 0.2s;
-}
-
-.btn-retry:hover {
-  opacity: 0.9;
-}
-
-/* Player Controls */
-.player-controls {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 16px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 0.3s;
-  z-index: 5;
-}
-
-.player-wrapper:hover .player-controls {
-  opacity: 1;
-}
-
-.controls-left,
-.controls-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ctrl-btn {
-  background: none;
-  border: none;
-  color: white;
+  color: var(--text-main);
   cursor: pointer;
   padding: 8px;
   border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
   transition: background 0.2s;
-}
-
-.ctrl-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.volume-slider {
-  width: 80px;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
-
-.live-indicator {
-  color: var(--error);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* Quality Selector */
-.quality-selector {
-  position: relative;
-}
-
-.quality-menu {
-  position: absolute;
-  bottom: 100%;
-  right: 0;
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  padding: 8px 0;
-  min-width: 160px;
-  display: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-.menu-separator {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 4px 0;
-}
-
-.quality-menu.active {
-  display: block;
-}
-
-.quality-item {
-  padding: 10px 16px;
-  cursor: pointer;
-  font-size: 14px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: background 0.2s;
-}
-
-.quality-item:hover {
-  background: var(--bg-tertiary);
-}
-
-.quality-item.active {
-  color: var(--accent);
-}
-
-.quality-item.active::after {
-  content: '✓';
-}
-
-.quality-badge {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
-  color: white;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  z-index: 5;
-  opacity: 0.9;
-}
-
-/* Sidebar */
-.sidebar {
-  background: var(--bg-secondary);
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-}
-
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.sidebar-actions {
-  display: flex;
-  gap: 4px;
-}
-
-/* Chat Container */
-.chat-container {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  background: var(--bg-tertiary);
-}
-
-.chat-frame,
-.chat-embed,
-.chat-sandbox,
-.chat-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: transparent;
-}
-
-/* Chat Fallback */
-.chat-fallback {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.chat-fallback a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.chat-fallback a:hover {
-  text-decoration: underline;
-}
-
-/* Chat Loading State */
-.chat-loading {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: 13px;
-  z-index: 5;
 }
 
-.spinner-small {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
-/* Chat Placeholder */
-.chat-placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  padding: 20px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.chat-placeholder p {
-  font-size: 14px;
-}
-
-.btn-open-chat {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--twitch-purple);
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-open-chat:hover {
-  background: #7c3aed;
-  transform: scale(1.02);
-}
-
-/* Sidebar Hidden */
-.sidebar.hidden {
-  display: none;
-}
-
-.app.chat-hidden {
-  grid-template-columns: 1fr;
-}
-
-/* Fullscreen */
-.app.fullscreen {
-  grid-template-rows: 1fr;
-  grid-template-columns: 1fr;
-}
-
-.app.fullscreen .header,
-.app.fullscreen .sidebar {
-  display: none;
-}
-
-/* Chat Messages Container */
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  scroll-behavior: smooth;
-}
-
-.chat-messages::-webkit-scrollbar {
-  width: 6px;
-}
-
-.chat-messages::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-
-.chat-messages::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* Individual Chat Message */
-.chat-message {
-  font-size: 13px;
-  line-height: 1.5;
-  word-wrap: break-word;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.15s;
-}
-
-.chat-message:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.chat-badges {
-  margin-right: 4px;
-}
-
-.chat-badge {
-  font-size: 12px;
-  margin-right: 2px;
-}
-
-.chat-author {
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.chat-author:hover {
-  text-decoration: underline;
-}
-
-.chat-separator {
-  color: var(--text-secondary);
-  margin: 0 4px;
-}
-
-.chat-text {
-  color: var(--text-primary);
-}
-
-/* Chat Status */
-.chat-status {
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.chat-status.connected {
-  color: var(--success);
-  background: rgba(0, 245, 147, 0.1);
-}
-
-/* Sidebar Header Actions */
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-weight: 600;
-  gap: 8px;
-}
-
-.sidebar-actions {
-  display: flex;
-  gap: 4px;
-}
-
-/* Chat Connecting State */
-.chat-connecting {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-/* Small Spinner for Chat */
-.spinner-small {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    display: none;
-  }
-
-  .channel-info {
-    display: none;
-  }
-}
-
-/* =========================================
-   Video Enhancement Styles
-   ========================================= */
-
-/* 설정 메뉴 컨테이너 */
-.custom-selector {
-  position: relative;
-  margin-right: 8px;
-}
-
+/* Settings Menu (Main) */
 .settings-menu {
   position: absolute;
-  bottom: 50px;
-  right: -50px;
-  /* 오른쪽 정렬 조정 */
-  background: rgba(20, 20, 20, 0.95);
-  border-radius: 8px;
-  padding: 12px 0;
-  min-width: 250px;
-  display: none;
-  z-index: 100;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  top: 50px;
+  right: 0;
+  width: 320px;
+  background-color: var(--bg-menu);
   backdrop-filter: blur(10px);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0;
+  display: none;
+  /* JS toggles 'active' */
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-color);
+  z-index: 100;
+  max-height: 80vh;
+  overflow-y: auto;
+  font-size: 13px;
+  user-select: none;
 }
 
 .settings-menu.active {
-  display: block;
-}
-
-.settings-item {
-  padding: 8px 16px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  animation: menuSlideIn 0.2s ease-out;
 }
 
-.settings-item.column {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+@keyframes menuSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.settings-item.center {
-  justify-content: center;
-}
-
-.settings-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  font-weight: 600;
-  font-size: 14px;
-  color: #fff;
-  margin-bottom: 4px;
-}
-
-.settings-label-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  color: #ddd;
-}
-
-.value-text {
-  color: #9147ff;
-  font-weight: bold;
-}
-
-.settings-separator {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 4px 0;
-}
-
-.settings-select {
-  background: #333;
-  color: #fff;
-  border: 1px solid #555;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  outline: none;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.settings-select:focus {
-  border-color: #9147ff;
-}
-
-/* 탭 스타일 */
+/* Tabs */
 .settings-tabs {
   display: flex;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #444;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .tab-btn {
   flex: 1;
+  padding: 12px;
   background: none;
   border: none;
-  color: #aaa;
-  padding: 8px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
-  font-size: 13px;
+  color: var(--text-muted);
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  outline: none;
 }
 
 .tab-btn:hover {
-  color: #ddd;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-btn.active {
-  color: #fff;
-  border-bottom: 2px solid #9147ff;
+  color: var(--primary-color);
 }
 
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--primary-color);
+}
+
+/* Tab Content */
 .tab-content {
   display: none;
-  animation: fadeIn 0.2s ease;
+  padding: 16px;
 }
 
 .tab-content.active {
   display: block;
+  animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
@@ -735,58 +187,49 @@ body {
   }
 }
 
-/* EQ 스타일 */
-.eq-container {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 5px;
-  height: 120px;
+/* Settings Items */
+.settings-item {
+  margin-bottom: 16px;
 }
 
-.eq-band {
+.settings-item.column {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
   gap: 8px;
-  width: 18%;
 }
 
-.eq-band span {
-  font-size: 10px;
-  color: #aaa;
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 4px;
 }
 
-/* 수직 슬라이더 크로스브라우징 스타일링 */
-.vertical-slider {
-  -webkit-appearance: slider-vertical;
-  /* Chrome, Safari, Edge */
-  width: 6px;
-  height: 100px;
-  /* 슬라이더 높이 */
-  background: #444;
-  border-radius: 3px;
-  outline: none;
-  cursor: pointer;
-  margin: 0 auto;
+.settings-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+  margin-bottom: 4px;
 }
 
-/* Firefox 호환성 (appearance: slider-vertical 미지원) */
-@supports not (-webkit-appearance: slider-vertical) {
-  .vertical-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100px;
-    /* 회전 전 너비 (실제 높이) */
-    height: 6px;
-    /* 회전 전 높이 (실제 너비) */
-    transform: rotate(-90deg);
-    margin: 45px -45px;
-    /* 위치 보정 */
-  }
+.value-text {
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: bold;
+  min-width: 30px;
+  text-align: right;
 }
 
-/* 토글 스위치 */
+.settings-separator {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 12px 0;
+}
+
+/* Toggle Switch */
 .toggle-switch {
   position: relative;
   display: inline-block;
@@ -800,15 +243,18 @@ body {
   height: 0;
 }
 
-.slider.round {
+.slider {
   position: absolute;
   cursor: pointer;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #555;
+  background-color: #4a4a4a;
   transition: .4s;
+}
+
+.slider.round {
   border-radius: 34px;
 }
 
@@ -824,23 +270,23 @@ body {
   border-radius: 50%;
 }
 
-input:checked+.slider.round {
-  background-color: #9147ff;
+input:checked+.slider {
+  background-color: var(--primary-color);
 }
 
-input:checked+.slider.round:before {
+input:checked+.slider:before {
   transform: translateX(16px);
 }
 
-/* 범위 슬라이더 */
+/* Range Sliders */
 .range-slider {
   -webkit-appearance: none;
   width: 100%;
   height: 4px;
-  background: #444;
+  background: var(--slider-bg);
   border-radius: 2px;
   outline: none;
-  margin: 8px 0;
+  cursor: pointer;
 }
 
 .range-slider::-webkit-slider-thumb {
@@ -849,37 +295,131 @@ input:checked+.slider.round:before {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--text-main);
   cursor: pointer;
-  transition: background .15s ease-in-out, transform 0.15s;
+  transition: background 0.15s, transform 0.15s;
 }
 
 .range-slider::-webkit-slider-thumb:hover {
-  background: #9147ff;
+  background: #fff;
   transform: scale(1.2);
 }
 
-/* 텍스트 버튼 */
+/* Select Box */
+.settings-select {
+  width: 100%;
+  background-color: var(--slider-bg);
+  color: var(--text-main);
+  border: 1px solid transparent;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  border-color: var(--primary-color);
+}
+
+/* EQ Controls */
+.eq-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 140px;
+  padding: 10px 0;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.eq-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.eq-band span {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* Vertical Slider (Chrome/Webkit specific) */
+.vertical-slider {
+  writing-mode: bt-lr;
+  /* IE */
+  -webkit-appearance: slider-vertical;
+  width: 24px;
+  height: 90px;
+  outline: none;
+  background: transparent;
+}
+
+/* Buttons */
 .text-btn {
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #aaa;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 4px;
   transition: all 0.2s;
+  width: 100%;
 }
 
 .text-btn:hover {
-  color: #fff;
-  border-color: #9147ff;
-  background: rgba(145, 71, 255, 0.1);
+  border-color: var(--text-main);
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
 }
 
-/* 비디오 필터 적용 클래스 */
-.video-enhanced {
-  /* SVG 필터와 CSS 필터 조합 */
-  /* SVG 필터는 선명도 조절, CSS 필터는 밝기/대비/채도 조절 */
-  filter: url(#video-filter) contrast(var(--contrast, 100%)) brightness(var(--brightness, 100%));
+/* Helper Classes */
+.center {
+  display: flex;
+  justify-content: center;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 4px solid var(--primary-color);
+  animation: spin 1s linear infinite;
+  z-index: 5;
+}
+
+@keyframes spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Scrollbar */
+.settings-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-menu::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
 }

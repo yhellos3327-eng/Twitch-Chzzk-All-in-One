@@ -249,17 +249,62 @@
         window.open(chatUrl, 'twitch-chat', 'width=400,height=600,resizable=yes,scrollbars=yes');
     }
 
+    // 스트림 정보 가져오기
+    async function getStreamInfo(channel) {
+        const proxyUrl = window.location.origin;
+        const response = await fetch(`${proxyUrl}/stream/${channel}`);
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        return await response.json();
+    }
+
+    // 메타데이터 UI 업데이트
+    function updateMetadata(meta) {
+        if (!meta) return;
+        try {
+            const profile = document.getElementById('profile-image');
+            if (profile && meta.profileImageURL) {
+                profile.src = meta.profileImageURL;
+                profile.style.display = 'block';
+            }
+            const nameEl = document.getElementById('channel-name');
+            if (nameEl) nameEl.textContent = meta.displayName;
+
+            if (meta.stream) {
+                const titleEl = document.getElementById('stream-title');
+                if (titleEl) titleEl.textContent = meta.stream.title;
+                const gameEl = document.getElementById('game-name');
+                if (gameEl) gameEl.textContent = meta.stream.game?.displayName || '';
+
+                const viewers = document.getElementById('viewer-count');
+                const vContainer = document.getElementById('viewer-count-container');
+                if (viewers) viewers.textContent = meta.stream.viewersCount.toLocaleString();
+                if (vContainer) vContainer.style.display = 'flex';
+
+                document.title = `${meta.displayName} - ${meta.stream.title}`;
+            }
+        } catch (e) { console.error('[Meta] Update failed', e); }
+    }
+
     // 스트림 시작
     async function startStream(channel) {
-        showLoading('Connecting to stream...');
+        showLoading('방송 연결 중...'); // 한글화
 
         try {
             console.log('[Player] Starting stream for:', channel);
 
             const streamInfo = await getStreamInfo(channel);
 
+            if (streamInfo.error) {
+                throw new Error(streamInfo.error);
+            }
+
             if (!streamInfo.qualities || streamInfo.qualities.length === 0) {
-                throw new Error('Stream is offline or no qualities available');
+                throw new Error('방송이 오프라인이거나 정보를 불러올 수 없습니다.');
+            }
+
+            // 메타데이터 처리
+            if (streamInfo.metadata) {
+                updateMetadata(streamInfo.metadata);
             }
 
             console.log('[Player] Stream info:', streamInfo);
@@ -294,6 +339,7 @@
 
             // HLS 플레이어 초기화
             video = elements.video();
+            video.crossOrigin = "anonymous"; // Enable CORS for Web Audio API
 
             if (!Hls.isSupported()) {
                 throw new Error('HLS is not supported in this browser');
@@ -624,6 +670,10 @@
                 this.elements.modeSelect.addEventListener('change', (e) => {
                     this.setMode(e.target.value);
                 });
+                // 이벤트 전파 방지
+                ['mousedown', 'click'].forEach(evt =>
+                    this.elements.modeSelect.addEventListener(evt, e => e.stopPropagation())
+                );
             }
 
             // 슬라이더들
@@ -791,14 +841,31 @@
             };
         },
         setupContext() {
-            if (this.context) return;
-            const AC = window.AudioContext || window.webkitAudioContext;
-            this.context = new AC();
-            if (!video) video = document.getElementById('video-player');
-            if (!video.crossOrigin) video.crossOrigin = 'anonymous';
+            if (this.context && this.context.state !== 'closed') return;
 
-            try { this.source = this.context.createMediaElementSource(video); }
-            catch (e) { return; }
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                this.context = new AC();
+
+                if (!video) video = document.getElementById('video-player');
+                if (video && !video.crossOrigin) video.crossOrigin = 'anonymous';
+
+                this.source = this.context.createMediaElementSource(video);
+
+                // 사용자 인터랙션 시 Resume
+                const resumeCtx = () => {
+                    if (this.context && this.context.state === 'suspended') {
+                        this.context.resume().then(() => console.log('[Audio] Context resumed'));
+                    }
+                };
+                ['click', 'touchstart', 'keydown'].forEach(evt =>
+                    document.addEventListener(evt, resumeCtx, { once: true, capture: true })
+                );
+
+            } catch (e) {
+                console.error('[AudioEnhancer] Setup context failed:', e);
+                return;
+            }
 
             this.gainNode = this.context.createGain();
             this.compressor = this.context.createDynamicsCompressor();
