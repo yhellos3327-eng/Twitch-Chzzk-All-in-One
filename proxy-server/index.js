@@ -87,7 +87,6 @@ async function fetchWithRedirects(targetUrl, options = {}) {
 
 // Twitch 액세스 토큰 획득 (GQL API)
 async function getStreamToken(channel) {
-  // persistedQuery 방식 시도
   const persistedQuery = {
     operationName: 'PlaybackAccessToken',
     extensions: {
@@ -115,21 +114,12 @@ async function getStreamToken(channel) {
   });
 
   let data = JSON.parse(response.body.toString());
-  console.log('[Token] Persisted query response:', JSON.stringify(data).substring(0, 300));
 
-  // persistedQuery가 실패하면 일반 쿼리로 재시도
   if (!data.data?.streamPlaybackAccessToken) {
-    console.log('[Token] Persisted query failed, trying full query');
-
     const fullQuery = {
       operationName: 'PlaybackAccessToken_Template',
       query: `query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {
         streamPlaybackAccessToken(channelName: $login, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isLive) {
-          value
-          signature
-          __typename
-        }
-        videoPlaybackAccessToken(id: $vodID, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isVod) {
           value
           signature
           __typename
@@ -154,7 +144,6 @@ async function getStreamToken(channel) {
     });
 
     data = JSON.parse(response.body.toString());
-    console.log('[Token] Full query response:', JSON.stringify(data).substring(0, 300));
   }
 
   return data;
@@ -189,6 +178,11 @@ async function getPlaylist(channel, token, sig) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const parsedUrl = url.parse(req.url, true);
+  const pathname = parsedUrl.pathname;
+
+  console.log(`[Request] ${req.method} ${pathname}`);
+
   // CORS preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders);
@@ -196,59 +190,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Health check
-  if (req.url === '/health') {
-    res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'twitch-proxy' }));
-    return;
-  }
-
-  // API 경로는 정적 파일로 처리하지 않음
-  const isApiRoute = req.url.startsWith('/stream/') || req.url.startsWith('/proxy');
-
-  // 정적 파일 서빙 (player 페이지) - API 경로가 아닌 경우만
-  if (!isApiRoute) {
-    const MIME_TYPES = {
-      '.html': 'text/html',
-      '.css': 'text/css',
-      '.js': 'application/javascript',
-      '.json': 'application/json',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.svg': 'image/svg+xml',
-    };
-
-    // 루트 또는 /player로 접근 시 player.html 제공
-    const parsedUrl = url.parse(req.url, true);
-    let filePath = parsedUrl.pathname;
-
-    if (filePath === '/' || filePath === '/player' || filePath === '/player.html') {
-      filePath = '/player.html';
-    }
-
-    // 정적 파일 체크
-    const fullPath = path.join(PUBLIC_DIR, filePath);
-    const ext = path.extname(fullPath);
-
-    if (MIME_TYPES[ext] && fs.existsSync(fullPath)) {
-      try {
-        const content = fs.readFileSync(fullPath);
-        res.writeHead(200, {
-          ...corsHeaders,
-          'Content-Type': MIME_TYPES[ext],
-          'Cache-Control': 'no-cache'
-        });
-        res.end(content);
-        return;
-      } catch (e) {
-        console.error('[Static] Error reading file:', e.message);
-      }
-    }
-  }
-
-  // 스트림 정보 API (토큰 + playlist 한번에)
-  if (req.url.startsWith('/stream/')) {
-    const channel = req.url.split('/stream/')[1]?.split('?')[0];
+  // 1. API - Stream Info
+  if (pathname.startsWith('/stream/')) {
+    const channel = pathname.split('/stream/')[1]?.split('/')[0];
 
     if (!channel) {
       res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
@@ -257,9 +201,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      console.log(`[Stream] Getting stream for: ${channel}`);
-
-      // 1. 토큰 획득
+      console.log(`[API] Getting stream for: ${channel}`);
       const tokenData = await getStreamToken(channel);
 
       if (!tokenData.data?.streamPlaybackAccessToken) {
@@ -269,8 +211,6 @@ const server = http.createServer(async (req, res) => {
       }
 
       const { value: token, signature: sig } = tokenData.data.streamPlaybackAccessToken;
-
-      // 2. playlist 획득
       const playlist = await getPlaylist(channel, token, sig);
 
       if (playlist.status !== 200) {
@@ -279,7 +219,6 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // 3. playlist 파싱해서 화질 목록 추출
       const lines = playlist.body.split('\n');
       const qualities = [];
       let currentQuality = null;
@@ -308,78 +247,63 @@ const server = http.createServer(async (req, res) => {
       }
 
       res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        channel,
-        qualities,
-        playlist: playlist.body,
-      }));
-
-      console.log(`[Stream] Success: ${channel}, ${qualities.length} qualities`);
-
+      res.end(JSON.stringify({ channel, qualities, playlist: playlist.body }));
     } catch (error) {
-      console.error(`[Stream] Error:`, error.message);
+      console.error(`[API Error]`, error.message);
       res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error.message }));
     }
     return;
   }
 
-  // 일반 프록시 요청
-  if (req.url.startsWith('/proxy')) {
-    const parsed = url.parse(req.url, true);
-    const targetUrl = parsed.query.url;
-
-    if (!targetUrl) {
+  // 2. API - Proxy
+  if (pathname.startsWith('/proxy')) {
+    const targetUrl = parsedUrl.query.url;
+    if (!targetUrl || !isAllowedUrl(targetUrl)) {
       res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Missing url parameter' }));
-      return;
-    }
-
-    if (!isAllowedUrl(targetUrl)) {
-      res.writeHead(403, { ...corsHeaders, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'URL not allowed' }));
+      res.end(JSON.stringify({ error: 'Invalid URL' }));
       return;
     }
 
     try {
-      console.log(`[Proxy] Fetching: ${targetUrl}`);
-
-      const response = await fetchWithRedirects(targetUrl, {
-        headers: {
-          'user-agent': req.headers['user-agent'],
-          'accept': req.headers['accept'],
-        },
-      });
-
-      let body = response.body;
-      const contentType = response.headers['content-type'] || '';
-
-      if (contentType.includes('application/vnd.apple.mpegurl') || targetUrl.includes('.m3u8')) {
-        res.writeHead(response.status, {
-          ...corsHeaders,
-          'Content-Type': 'application/vnd.apple.mpegurl',
-        });
-      } else {
-        res.writeHead(response.status, {
-          ...corsHeaders,
-          'Content-Type': contentType,
-        });
-      }
-
-      res.end(body);
-      console.log(`[Proxy] Success: ${response.status}`);
-
+      const response = await fetchWithRedirects(targetUrl);
+      res.writeHead(response.status, { ...corsHeaders, 'Content-Type': response.headers['content-type'] });
+      res.end(response.body);
     } catch (error) {
-      console.error(`[Proxy] Error:`, error.message);
       res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error.message }));
     }
     return;
   }
 
-  // 404
+  // 3. Static Files
+  if (pathname === '/health') {
+    res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
+
+  let filePath = (pathname === '/' || pathname === '/player') ? '/player.html' : pathname;
+  const fullPath = path.join(PUBLIC_DIR, filePath);
+  const ext = path.extname(fullPath);
+  const MIME_TYPES = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml'
+  };
+
+  if (MIME_TYPES[ext] && fs.existsSync(fullPath)) {
+    res.writeHead(200, { ...corsHeaders, 'Content-Type': MIME_TYPES[ext] });
+    res.end(fs.readFileSync(fullPath));
+    return;
+  }
+
+  // 4. Fallback 404
   res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: 'Not found' }));
+  res.end(JSON.stringify({ error: 'Not Found' }));
 });
 
 server.listen(PORT, () => {
