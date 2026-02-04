@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const copyWorkerCode = document.getElementById('copy-worker-code');
   const workerCode = document.getElementById('worker-code');
   const resetSettings = document.getElementById('reset-settings');
+  const goToProxy = document.getElementById('go-to-proxy');
 
   // ===== 기본 설정 =====
   const DEFAULT_SETTINGS = {
@@ -275,12 +276,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     proxyTestResult.style.display = 'block';
 
     try {
-      const testUrl = `${url}?url=${encodeURIComponent('https://httpbin.org/get')}`;
-      const response = await fetch(testUrl, { method: 'GET', mode: 'cors' });
+      // 헬스체크 엔드포인트로 테스트
+      const baseUrl = url.replace(/\/$/, '');
+      const response = await fetch(baseUrl + '/', { method: 'GET', mode: 'cors' });
 
       if (response.ok) {
-        proxyTestResult.textContent = '✓ 연결 성공! 프록시 서버가 정상 작동합니다.';
-        proxyTestResult.className = 'test-result success';
+        const data = await response.json();
+        if (data.service === 'twitch-proxy') {
+          proxyTestResult.textContent = '✓ 연결 성공! 프록시 서버가 정상 작동합니다.';
+          proxyTestResult.className = 'test-result success';
+        } else {
+          proxyTestResult.textContent = '⚠ 연결됨, 하지만 twitch-proxy가 아닐 수 있습니다.';
+          proxyTestResult.className = 'test-result success';
+        }
       } else {
         proxyTestResult.textContent = `✗ 연결 실패: HTTP ${response.status}`;
         proxyTestResult.className = 'test-result error';
@@ -309,6 +317,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       await initUI();
       alert('설정이 초기화되었습니다.');
     }
+  });
+
+  // 프록시 설정으로 이동
+  goToProxy.addEventListener('click', () => {
+    document.querySelector('[data-section=proxy]').click();
   });
 
   // ===== 초기화 =====
