@@ -175,19 +175,29 @@
 
     // Twitch 채팅 iframe 로드
     function loadChatIframe(channel) {
-        const chatIframe = elements.chatIframe();
+        // 요소를 직접 다시 찾기 시도
+        let chatIframe = document.getElementById('chat-iframe');
 
         if (!chatIframe) {
-            console.warn('[Chat] Chat iframe not found');
+            console.warn('[Chat] Chat iframe not found, retrying in 1s...');
+            setTimeout(() => loadChatIframe(channel), 1000);
+            return;
+        }
+
+        // 이미 로드된 경우 스킵 (채널이 같을 때)
+        if (chatIframe.getAttribute('data-channel') === channel) {
             return;
         }
 
         // Twitch 채팅 팝아웃 URL (darkpopout으로 다크모드 적용)
+        // parent 파라미터가 필요할 수 있음 (CORS 관련) - 로컬/배포 환경에 따라 다름
+        // 하지만 iframe src는 보통 제약이 덜함
         const chatUrl = `https://www.twitch.tv/popout/${channel}/chat?darkpopout`;
 
         console.log('[Chat] Loading chat iframe:', chatUrl);
 
         chatIframe.src = chatUrl;
+        chatIframe.setAttribute('data-channel', channel);
     }
 
     // 채팅 새로고침

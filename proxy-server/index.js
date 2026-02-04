@@ -279,7 +279,11 @@ const server = http.createServer(async (req, res) => {
             currentQuality.bandwidth = bwMatch?.[1];
           }
         } else if (line.startsWith('http') && currentQuality) {
-          currentQuality.url = line.trim();
+          // URL을 프록시 URL로 변환
+          const originalUrl = line.trim();
+          const proxyUrl = `/proxy?url=${encodeURIComponent(originalUrl)}`;
+          currentQuality.url = proxyUrl;
+
           qualities.push(currentQuality);
           currentQuality = null;
         }
@@ -306,8 +310,30 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const response = await fetchWithRedirects(targetUrl);
-      res.writeHead(response.status, { ...corsHeaders, 'Content-Type': response.headers['content-type'] });
-      res.end(response.body);
+
+      let contentType = response.headers['content-type'] || '';
+      let body = response.body;
+
+      // m3u8 파일인 경우 내부 URL도 프록시 처리
+      if (contentType.includes('mpegurl') || targetUrl.includes('.m3u8')) {
+        let text = body.toString();
+
+        // 절대 경로(http...)는 /proxy?url=... 로 변환
+        text = text.replace(/^(https?:\/\/[^\s]+)/gm, (match) => {
+          return `/proxy?url=${encodeURIComponent(match)}`;
+        });
+
+        // 상대 경로 처리도 필요할 수 있지만, Twitch는 보통 절대 경로 사용
+        // 만약 상대 경로가 있다면 base URL을 추가해서 처리해야 함
+
+        body = Buffer.from(text);
+
+        // Content-Length 헤더 제거 (body 크기가 달라졌으므로)
+        delete response.headers['content-length'];
+      }
+
+      res.writeHead(response.status, { ...corsHeaders, 'Content-Type': contentType });
+      res.end(body);
     } catch (error) {
       res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error.message }));
