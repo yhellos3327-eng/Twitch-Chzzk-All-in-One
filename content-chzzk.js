@@ -1,6 +1,6 @@
 // Stream Quality Bypass - Chzzk Content Script
 
-(function() {
+(function () {
   'use strict';
 
   const LOG_PREFIX = '[StreamBypass:Chzzk]';
@@ -19,60 +19,15 @@
 
   // 네이버 그리드 (P2P) 비활성화
   function disableNaverGrid() {
-    // 그리드 관련 전역 객체 무력화
-    Object.defineProperty(window, 'NaverMediaGrid', {
-      get: () => undefined,
-      set: () => {},
-      configurable: false
-    });
-
-    Object.defineProperty(window, 'NMGrid', {
-      get: () => undefined,
-      set: () => {},
-      configurable: false
-    });
-
-    // 그리드 SDK 로딩 차단
-    const originalCreateElement = document.createElement.bind(document);
-    document.createElement = function(tagName) {
-      const element = originalCreateElement(tagName);
-
-      if (tagName.toLowerCase() === 'script') {
-        const originalSetAttribute = element.setAttribute.bind(element);
-        element.setAttribute = function(name, value) {
-          if (name === 'src' && value && (value.includes('grid') || value.includes('nmgrid'))) {
-            console.log(LOG_PREFIX, 'Blocked grid script:', value);
-            return; // 그리드 스크립트 로딩 차단
-          }
-          return originalSetAttribute(name, value);
-        };
-
-        // src 프로퍼티도 감시
-        Object.defineProperty(element, 'src', {
-          set: function(value) {
-            if (value && (value.includes('grid') || value.includes('nmgrid'))) {
-              console.log(LOG_PREFIX, 'Blocked grid script (src):', value);
-              return;
-            }
-            element.setAttribute('src', value);
-          },
-          get: function() {
-            return element.getAttribute('src');
-          }
-        });
-      }
-
-      return element;
-    };
-
-    console.log(LOG_PREFIX, 'Grid disabled');
+    // Disabled by user request
+    console.log(LOG_PREFIX, 'Naver Grid disabling is currently turned off.');
   }
 
   // Fetch API 가로채기 - 그리드 관련 요청 차단 및 직접 연결 강제
   function interceptFetch() {
     const originalFetch = window.fetch;
 
-    window.fetch = async function(input, init) {
+    window.fetch = async function (input, init) {
       const url = typeof input === 'string' ? input : input.url;
 
       // 그리드 관련 요청 차단
@@ -102,17 +57,17 @@
   function interceptWebSocket() {
     const OriginalWebSocket = window.WebSocket;
 
-    window.WebSocket = function(url, protocols) {
+    window.WebSocket = function (url, protocols) {
       // 그리드 관련 WebSocket 차단
       if (url.includes('grid') || url.includes('p2p') || url.includes('nmgrid')) {
         console.log(LOG_PREFIX, 'Blocked grid WebSocket:', url);
         // 더미 WebSocket 반환 (연결 안 됨)
         const dummy = {
           readyState: 3, // CLOSED
-          send: () => {},
-          close: () => {},
-          addEventListener: () => {},
-          removeEventListener: () => {}
+          send: () => { },
+          close: () => { },
+          addEventListener: () => { },
+          removeEventListener: () => { }
         };
         return dummy;
       }
@@ -129,7 +84,7 @@
 
   // RTCPeerConnection 차단 (P2P 완전 비활성화)
   function disableWebRTC() {
-    window.RTCPeerConnection = function() {
+    window.RTCPeerConnection = function () {
       console.log(LOG_PREFIX, 'Blocked RTCPeerConnection');
       throw new Error('RTCPeerConnection is disabled');
     };
@@ -168,39 +123,11 @@
 
   // 초기화
   async function init() {
-    console.log(LOG_PREFIX, 'Initializing...');
-
-    await loadSettings();
-
-    if (settings?.chzzk?.enabled) {
-      if (settings?.chzzk?.disableGrid) {
-        disableNaverGrid();
-        disableWebRTC();
-        interceptWebSocket();
-        cleanLocalStorage();
-      }
-      interceptFetch();
-      watchQualitySelector();
-      console.log(LOG_PREFIX, 'Bypass active');
-    } else {
-      console.log(LOG_PREFIX, 'Bypass disabled');
-    }
+    console.log(LOG_PREFIX, 'Chzzk bypass disabled by user request.');
+    return;
   }
 
-  // 설정 업데이트 수신
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'SETTINGS_UPDATED') {
-      settings = message.settings;
-      console.log(LOG_PREFIX, 'Settings updated:', settings);
-    }
-  });
-
-  // 페이지 로드 전에 그리드 차단 (가장 빠르게)
-  if (settings?.chzzk?.disableGrid !== false) {
-    disableNaverGrid();
-  }
-
-  // 나머지 초기화
+  // 페이지 로드 시 초기화
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

@@ -742,6 +742,107 @@
         }
     };
 
+    // ========== 오디오 개선 (Audio Enhancement) ==========
+    const AudioEnhancer = {
+        context: null, source: null, gainNode: null, compressor: null, eqBands: [],
+        freqs: [60, 250, 1000, 4000, 12000],
+        settings: { enabled: false, boost: 100, compressor: false, eq: [0, 0, 0, 0, 0] },
+        elements: {},
+
+        init() {
+            this.elements = {
+                toggle: document.getElementById('audio-toggle'),
+                boost: document.getElementById('audio-boost-slider'),
+                compressor: document.getElementById('compressor-toggle'),
+                reset: document.getElementById('reset-audio-btn'),
+                eq: Array.from(document.querySelectorAll('.eq-slider'))
+            };
+            if (!this.elements.toggle) return;
+            this.loadSettings();
+            this.setupListeners();
+        },
+        loadSettings() {
+            try {
+                const s = JSON.parse(localStorage.getItem('audioEnhancementSettings'));
+                if (s) this.settings = { ...this.settings, ...s };
+            } catch (e) { }
+            this.updateUI();
+        },
+        updateUI() {
+            this.elements.toggle.checked = this.settings.enabled;
+            this.elements.boost.value = this.settings.boost;
+            this.elements.compressor.checked = this.settings.compressor;
+            this.elements.eq.forEach((el, i) => el.value = this.settings.eq[i] || 0);
+            document.getElementById('audio-boost-value').textContent = this.settings.boost + '%';
+        },
+        setupListeners() {
+            const update = () => {
+                this.updateNodes();
+                this.updateUI();
+                localStorage.setItem('audioEnhancementSettings', JSON.stringify(this.settings));
+            };
+            this.elements.toggle.onclick = (e) => { this.settings.enabled = e.target.checked; update(); };
+            this.elements.boost.oninput = (e) => { this.settings.boost = +e.target.value; update(); };
+            this.elements.compressor.onchange = (e) => { this.settings.compressor = e.target.checked; update(); };
+            this.elements.eq.forEach((el, i) => el.oninput = (e) => { this.settings.eq[i] = +e.target.value; update(); });
+            this.elements.reset.onclick = () => {
+                this.settings = { enabled: false, boost: 100, compressor: false, eq: [0, 0, 0, 0, 0] };
+                update();
+            };
+        },
+        setupContext() {
+            if (this.context) return;
+            const AC = window.AudioContext || window.webkitAudioContext;
+            this.context = new AC();
+            if (!video) video = document.getElementById('video-player');
+            if (!video.crossOrigin) video.crossOrigin = 'anonymous';
+
+            try { this.source = this.context.createMediaElementSource(video); }
+            catch (e) { return; }
+
+            this.gainNode = this.context.createGain();
+            this.compressor = this.context.createDynamicsCompressor();
+            this.eqBands = this.freqs.map(f => {
+                const bf = this.context.createBiquadFilter();
+                bf.type = 'peaking'; bf.frequency.value = f; bf.Q.value = 1; bf.gain.value = 0;
+                return bf;
+            });
+
+            let node = this.source;
+            this.eqBands.forEach(b => { node.connect(b); node = b; });
+            node.connect(this.compressor);
+            this.compressor.connect(this.gainNode);
+            this.gainNode.connect(this.context.destination);
+        },
+        updateNodes() {
+            if (!this.context) {
+                if (this.settings.enabled) this.setupContext();
+                else return;
+            }
+            if (this.context && this.context.state === 'suspended') this.context.resume();
+            if (!this.context) return;
+
+            if (!this.settings.enabled) {
+                this.gainNode.gain.value = 1;
+                this.eqBands.forEach(b => b.gain.value = 0);
+                this.compressor.threshold.value = 0;
+                this.compressor.ratio.value = 1;
+                return;
+            }
+
+            this.gainNode.gain.value = this.settings.boost / 100;
+            this.eqBands.forEach((b, i) => b.gain.value = this.settings.eq[i]);
+
+            if (this.settings.compressor) {
+                this.compressor.threshold.value = -24;
+                this.compressor.ratio.value = 12;
+            } else {
+                this.compressor.threshold.value = 0;
+                this.compressor.ratio.value = 1;
+            }
+        }
+    };
+
     // 초기화
     async function init() {
         console.log('[Player] Initializing...');
@@ -754,7 +855,19 @@
         }
 
         setupControls();
-        VideoEnhancer.init(); // VideoEnhancer 초기화
+
+        // 탭 설정
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        VideoEnhancer.init();
+        AudioEnhancer.init();
         startStream(currentChannel);
     }
 
