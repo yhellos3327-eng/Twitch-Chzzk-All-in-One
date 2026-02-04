@@ -84,7 +84,8 @@ async function fetchWithRedirects(targetUrl, options = {}) {
 
 // Twitch 액세스 토큰 획득 (GQL API)
 async function getStreamToken(channel) {
-  const query = {
+  // persistedQuery 방식 시도
+  const persistedQuery = {
     operationName: 'PlaybackAccessToken',
     extensions: {
       persistedQuery: {
@@ -101,16 +102,57 @@ async function getStreamToken(channel) {
     }
   };
 
-  const response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
+  let response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
     method: 'POST',
     headers: {
       'Client-ID': TWITCH_CLIENT_ID,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(query),
+    body: JSON.stringify(persistedQuery),
   });
 
-  return JSON.parse(response.body.toString());
+  let data = JSON.parse(response.body.toString());
+
+  // persistedQuery가 실패하면 일반 쿼리로 재시도
+  if (!data.data?.streamPlaybackAccessToken) {
+    console.log('[Token] Persisted query failed, trying full query');
+
+    const fullQuery = {
+      operationName: 'PlaybackAccessToken_Template',
+      query: `query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {
+        streamPlaybackAccessToken(channelName: $login, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isLive) {
+          value
+          signature
+          __typename
+        }
+        videoPlaybackAccessToken(id: $vodID, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isVod) {
+          value
+          signature
+          __typename
+        }
+      }`,
+      variables: {
+        isLive: true,
+        login: channel,
+        isVod: false,
+        vodID: '',
+        playerType: 'embed'
+      }
+    };
+
+    response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
+      method: 'POST',
+      headers: {
+        'Client-ID': TWITCH_CLIENT_ID,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(fullQuery),
+    });
+
+    data = JSON.parse(response.body.toString());
+  }
+
+  return data;
 }
 
 // m3u8 playlist 획득
