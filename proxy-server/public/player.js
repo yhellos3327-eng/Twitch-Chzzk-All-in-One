@@ -536,6 +536,7 @@
     const VideoEnhancer = {
         settings: {
             enabled: false,
+            mode: 'default',
             sharpness: 1.0,
             saturation: 1.0,
             contrast: 100,
@@ -544,6 +545,7 @@
 
         elements: {
             toggle: null,
+            modeSelect: null,
             sharpness: null,
             saturation: null,
             contrast: null,
@@ -559,6 +561,7 @@
         init() {
             // 요소 참조
             this.elements.toggle = document.getElementById('enhancement-toggle');
+            this.elements.modeSelect = document.getElementById('filter-mode-select');
             this.elements.sharpness = document.getElementById('sharpness-slider');
             this.elements.saturation = document.getElementById('saturation-slider');
             this.elements.contrast = document.getElementById('contrast-slider');
@@ -593,6 +596,7 @@
 
             // UI 업데이트
             this.elements.toggle.checked = this.settings.enabled;
+            if (this.elements.modeSelect) this.elements.modeSelect.value = this.settings.mode || 'default';
             this.elements.sharpness.value = this.settings.sharpness;
             this.elements.saturation.value = this.settings.saturation;
             this.elements.contrast.value = this.settings.contrast;
@@ -614,6 +618,13 @@
                 this.applyFilters();
                 this.saveSettings();
             });
+
+            // 모드 선택
+            if (this.elements.modeSelect) {
+                this.elements.modeSelect.addEventListener('change', (e) => {
+                    this.setMode(e.target.value);
+                });
+            }
 
             // 슬라이더들
             const sliders = [
@@ -653,6 +664,22 @@
             });
         },
 
+        setMode(mode) {
+            this.settings.mode = mode;
+            if (mode === 'natural') {
+                this.settings.saturation = 1.2;
+            } else {
+                this.settings.saturation = 1.0;
+            }
+
+            if (this.elements.saturation) this.elements.saturation.value = this.settings.saturation;
+            if (this.elements.modeSelect) this.elements.modeSelect.value = mode;
+
+            this.updateLabels();
+            this.applyFilters();
+            this.saveSettings();
+        },
+
         updateLabels() {
             document.getElementById('sharpness-value').textContent = this.settings.sharpness.toFixed(1) + 'x';
             document.getElementById('saturation-value').textContent = this.settings.saturation.toFixed(1) + 'x';
@@ -663,6 +690,7 @@
         resetSettings() {
             this.settings = {
                 enabled: false,
+                mode: 'default',
                 sharpness: 1.0,
                 saturation: 1.0,
                 contrast: 100,

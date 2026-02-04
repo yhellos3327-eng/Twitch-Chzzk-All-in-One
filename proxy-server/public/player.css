@@ -667,7 +667,24 @@ body {
 .settings-separator {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
-  margin: 6px 0;
+  margin: 4px 0;
+}
+
+.settings-select {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.settings-select:focus {
+  border-color: #9147ff;
 }
 
 /* 토글 스위치 */
