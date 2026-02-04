@@ -87,66 +87,102 @@ async function fetchWithRedirects(targetUrl, options = {}) {
 
 // Twitch 액세스 토큰 획득 (GQL API)
 async function getStreamToken(channel) {
-  const persistedQuery = {
-    operationName: 'PlaybackAccessToken',
-    extensions: {
-      persistedQuery: {
-        version: 1,
-        sha256Hash: '0828119ded1c13477966434e15800ff57ddacf13ba1911c129dc2200705b0712'
-      }
-    },
-    variables: {
-      isLive: true,
-      login: channel,
-      isVod: false,
-      vodID: '',
-      playerType: 'embed'
-    }
-  };
+  const playerTypes = ['site', 'embed', 'popout', 'frontpage'];
+  let lastError = null;
+  let data = null;
 
-  let response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
-    method: 'POST',
-    headers: {
-      'Client-ID': TWITCH_CLIENT_ID,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(persistedQuery),
-  });
+  for (const playerType of playerTypes) {
+    try {
+      console.log(`[Token] Trying playerType: ${playerType}`);
 
-  let data = JSON.parse(response.body.toString());
-
-  if (!data.data?.streamPlaybackAccessToken) {
-    const fullQuery = {
-      operationName: 'PlaybackAccessToken_Template',
-      query: `query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {
-        streamPlaybackAccessToken(channelName: $login, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isLive) {
-          value
-          signature
-          __typename
+      const body = {
+        operationName: 'PlaybackAccessToken',
+        extensions: {
+          persistedQuery: {
+            version: 1,
+            sha256Hash: '0828119ded1c13477966434e15800ff57ddacf13ba1911c129dc2200705b0712'
+          }
+        },
+        variables: {
+          isLive: true,
+          login: channel,
+          isVod: false,
+          vodID: '',
+          playerType: playerType
         }
-      }`,
-      variables: {
-        isLive: true,
-        login: channel,
-        isVod: false,
-        vodID: '',
-        playerType: 'embed'
+      };
+
+      let response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
+        method: 'POST',
+        headers: {
+          'Client-ID': TWITCH_CLIENT_ID,
+          'Content-Type': 'application/json',
+          'Device-ID': 'twitch-web-wall-mason',
+        },
+        body: JSON.stringify(body),
+      });
+
+      data = JSON.parse(response.body.toString());
+
+      // Persisted Query 실패 시 Full Query 시도
+      if (data.errors && data.errors[0]?.message?.includes('PersistedQueryNotFound')) {
+        console.log(`[Token] Persisted query failed for ${playerType}, trying full query`);
+
+        const fullQuery = {
+          operationName: 'PlaybackAccessToken_Template',
+          query: `query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {
+            streamPlaybackAccessToken(channelName: $login, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isLive) {
+              value
+              signature
+              authorization {
+                forbidden
+                reason
+              }
+              __typename
+            }
+          }`,
+          variables: {
+            isLive: true,
+            login: channel,
+            isVod: false,
+            vodID: '',
+            playerType: playerType
+          }
+        };
+
+        response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
+          method: 'POST',
+          headers: {
+            'Client-ID': TWITCH_CLIENT_ID,
+            'Content-Type': 'application/json',
+            'Device-ID': 'twitch-web-wall-mason',
+          },
+          body: JSON.stringify(fullQuery),
+        });
+
+        data = JSON.parse(response.body.toString());
       }
-    };
 
-    response = await fetchWithRedirects('https://gql.twitch.tv/gql', {
-      method: 'POST',
-      headers: {
-        'Client-ID': TWITCH_CLIENT_ID,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(fullQuery),
-    });
+      // 토큰 확인
+      if (data.data?.streamPlaybackAccessToken?.value) {
+        console.log(`[Token] Success with playerType: ${playerType}`);
+        return data; // 성공
+      } else {
+        // 상세 에러 로깅
+        if (data.data?.streamPlaybackAccessToken?.authorization) {
+          console.log(`[Token] Authorization failed for ${playerType}:`, data.data.streamPlaybackAccessToken.authorization);
+        } else {
+          console.log(`[Token] No token in response for ${playerType}:`, JSON.stringify(data));
+        }
+      }
 
-    data = JSON.parse(response.body.toString());
+    } catch (e) {
+      console.error(`[Token] Error with ${playerType}:`, e.message);
+      lastError = e;
+    }
   }
 
-  return data;
+  return data || { error: 'Failed to get token', details: lastError };
 }
 
 // m3u8 playlist 획득
@@ -204,7 +240,10 @@ const server = http.createServer(async (req, res) => {
       console.log(`[API] Getting stream for: ${channel}`);
       const tokenData = await getStreamToken(channel);
 
+      console.log(`[API] Token response:`, JSON.stringify(tokenData));
+
       if (!tokenData.data?.streamPlaybackAccessToken) {
+        console.log(`[API] No token found - stream offline or not found`);
         res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Stream not found or offline' }));
         return;
