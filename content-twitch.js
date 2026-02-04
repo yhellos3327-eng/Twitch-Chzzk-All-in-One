@@ -173,6 +173,19 @@
   function handleGlobalClick(event) {
     if (!settings?.twitch?.enabled) return;
 
+    const target = event.target;
+
+    // 제외할 요소 클릭 시 무시
+    // .Layout-sc-1xcs6mc-0 kpalQF 같은 클래스는 동적일 수 있으므로 부분 매칭도 고려해야 함
+    if (target.closest('.Layout-sc-1xcs6mc-0.kpalQF') ||
+      target.closest('.ScTagContent-sc-14s7ciu-1.kVhHfd') ||
+      target.closest('.InjectLayout-sc-1i43xsx-0.fAYJcN.tw-image.tw-image-avatar') ||
+      target.closest('[class*="ScTagContent"]') || // 태그 일반화
+      target.closest('[class*="tw-image-avatar"]')) { // 프사 일반화
+      console.log(LOG_PREFIX, 'Click ignored due to exclude selector');
+      return;
+    }
+
     // 스트림 카드 처리
     handleStreamCardClick(event);
 

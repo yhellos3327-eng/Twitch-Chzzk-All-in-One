@@ -220,8 +220,9 @@
             return;
         }
 
-        // Twitch 채팅 팝아웃 URL (darkpopout으로 다크모드 적용)
-        const chatUrl = `https://www.twitch.tv/popout/${channel}/chat?darkpopout`;
+        // Twitch 채팅 임베드 URL (parent 필수)
+        const hostname = window.location.hostname;
+        const chatUrl = `https://www.twitch.tv/embed/${channel}/chat?darkpopout&parent=${hostname}`;
 
         console.log('[Chat] Loading chat iframe:', chatUrl);
 
@@ -235,7 +236,8 @@
 
         if (chatIframe && currentChannel) {
             console.log('[Chat] Refreshing chat');
-            const chatUrl = `https://www.twitch.tv/popout/${currentChannel}/chat?darkpopout`;
+            const hostname = window.location.hostname;
+            const chatUrl = `https://www.twitch.tv/embed/${currentChannel}/chat?darkpopout&parent=${hostname}`;
             chatIframe.src = chatUrl;
         }
     }
