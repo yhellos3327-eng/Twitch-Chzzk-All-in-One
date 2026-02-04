@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Quality Bypass - 설정</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="app">
+    <!-- 사이드바 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">▶</span>
+          <span class="logo-text">Stream Bypass</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-section="dashboard">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">대시보드</span>
+        </a>
+        <a href="#" class="nav-item" data-section="twitch">
+          <span class="nav-icon">📺</span>
+          <span class="nav-text">Twitch</span>
+        </a>
+        <a href="#" class="nav-item" data-section="chzzk">
+          <span class="nav-icon">🎮</span>
+          <span class="nav-text">치지직</span>
+        </a>
+        <a href="#" class="nav-item" data-section="proxy">
+          <span class="nav-icon">🌐</span>
+          <span class="nav-text">프록시 설정</span>
+        </a>
+        <a href="#" class="nav-item" data-section="about">
+          <span class="nav-icon">ℹ️</span>
+          <span class="nav-text">정보</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="version-info">
+          <span>버전 1.0.0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="main-content">
+      <!-- 대시보드 섹션 -->
+      <section id="dashboard" class="section active">
+        <div class="section-header">
+          <h1>대시보드</h1>
+          <p>스트리밍 플랫폼 화질 우회 현황</p>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- 상태 카드들 -->
+          <div class="status-card twitch-card">
+            <div class="card-header">
+              <span class="card-icon">📺</span>
+              <h3>Twitch</h3>
+            </div>
+            <div class="card-body">
+              <div class="status-indicator">
+                <span class="status-dot" id="dash-twitch-status"></span>
+                <span class="status-label" id="dash-twitch-label">비활성화</span>
+              </div>
+              <div class="card-stat">
+                <span class="stat-number" id="dash-twitch-count">0</span>
+                <span class="stat-label">우회 횟수</span>
+              </div>
+            </div>
+            <div class="card-footer">
+              <label class="toggle-switch">
+                <input type="checkbox" id="dash-twitch-toggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="status-card chzzk-card">
+            <div class="card-header">
+              <span class="card-icon">🎮</span>
+              <h3>치지직</h3>
+            </div>
+            <div class="card-body">
+              <div class="status-indicator">
+                <span class="status-dot" id="dash-chzzk-status"></span>
+                <span class="status-label" id="dash-chzzk-label">비활성화</span>
+              </div>
+              <div class="card-stat">
+                <span class="stat-number" id="dash-chzzk-count">0</span>
+                <span class="stat-label">우회 횟수</span>
+              </div>
+            </div>
+            <div class="card-footer">
+              <label class="toggle-switch">
+                <input type="checkbox" id="dash-chzzk-toggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 프록시 상태 -->
+          <div class="status-card proxy-card">
+            <div class="card-header">
+              <span class="card-icon">🌐</span>
+              <h3>프록시 서버</h3>
+            </div>
+            <div class="card-body">
+              <div class="status-indicator">
+                <span class="status-dot" id="dash-proxy-status"></span>
+                <span class="status-label" id="dash-proxy-label">미설정</span>
+              </div>
+              <div class="proxy-url-display" id="dash-proxy-url">
+                프록시 URL을 설정해주세요
+              </div>
+            </div>
+            <div class="card-footer">
+              <button class="btn btn-sm" onclick="document.querySelector('[data-section=proxy]').click()">
+                설정하기
+              </button>
+            </div>
+          </div>
+
+          <!-- 빠른 정보 -->
+          <div class="status-card info-card">
+            <div class="card-header">
+              <span class="card-icon">💡</span>
+              <h3>빠른 정보</h3>
+            </div>
+            <div class="card-body">
+              <ul class="info-list">
+                <li>Twitch: 프록시를 통해 1080p 획득</li>
+                <li>치지직: 그리드 P2P 우회</li>
+                <li>설정은 실시간으로 적용됩니다</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Twitch 섹션 -->
+      <section id="twitch" class="section">
+        <div class="section-header">
+          <h1>Twitch 설정</h1>
+          <p>Twitch 화질 제한 우회 설정</p>
+        </div>
+
+        <div class="settings-group">
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>우회 기능 활성화</h4>
+              <p>Twitch의 한국 720p 제한을 우회합니다</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="twitch-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>선호 화질</h4>
+              <p>자동으로 선택할 화질을 지정합니다</p>
+            </div>
+            <select id="twitch-quality" class="select-input">
+              <option value="auto">자동 (최고 화질)</option>
+              <option value="1080p60">1080p 60fps</option>
+              <option value="1080p">1080p</option>
+              <option value="720p60">720p 60fps</option>
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+              <option value="360p">360p</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>디버그 로그</h4>
+              <p>개발자 콘솔에 상세 로그를 출력합니다</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="twitch-debug">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <div class="info-box-header">
+            <span class="info-icon">ℹ️</span>
+            <h4>작동 원리</h4>
+          </div>
+          <p>
+            Twitch는 한국 IP에서 접속 시 720p로 화질을 제한합니다.
+            이 확장프로그램은 playlist(m3u8) 요청을 해외 프록시 서버를 통해 전송하여
+            1080p 옵션이 포함된 스트림 목록을 받아옵니다.
+          </p>
+        </div>
+      </section>
+
+      <!-- 치지직 섹션 -->
+      <section id="chzzk" class="section">
+        <div class="section-header">
+          <h1>치지직 설정</h1>
+          <p>치지직 그리드 우회 설정</p>
+        </div>
+
+        <div class="settings-group">
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>우회 기능 활성화</h4>
+              <p>치지직 그리드(P2P)를 우회합니다</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="chzzk-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>그리드 비활성화</h4>
+              <p>네이버 미디어 그리드 P2P 기능을 완전히 차단합니다</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="chzzk-disable-grid">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>WebRTC 차단</h4>
+              <p>P2P 연결에 사용되는 WebRTC를 차단합니다</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="chzzk-disable-webrtc">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>선호 화질</h4>
+              <p>자동으로 선택할 화질을 지정합니다</p>
+            </div>
+            <select id="chzzk-quality" class="select-input">
+              <option value="auto">자동 (최고 화질)</option>
+              <option value="1080p">1080p</option>
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+              <option value="360p">360p</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <div class="info-box-header">
+            <span class="info-icon">ℹ️</span>
+            <h4>작동 원리</h4>
+          </div>
+          <p>
+            치지직은 네이버 미디어 그리드(P2P) 기술을 사용하여 시청자 간 트래픽을 분산시킵니다.
+            이 확장프로그램은 그리드를 비활성화하고 CDN 서버에 직접 연결하여
+            더 안정적인 고화질 스트리밍을 가능하게 합니다.
+          </p>
+        </div>
+      </section>
+
+      <!-- 프록시 설정 섹션 -->
+      <section id="proxy" class="section">
+        <div class="section-header">
+          <h1>프록시 설정</h1>
+          <p>Twitch 우회를 위한 프록시 서버 설정</p>
+        </div>
+
+        <div class="settings-group">
+          <div class="setting-item vertical">
+            <div class="setting-info">
+              <h4>프록시 서버 URL</h4>
+              <p>playlist 요청을 전달할 프록시 서버 주소</p>
+            </div>
+            <div class="input-group">
+              <input type="url" id="proxy-url" class="text-input" placeholder="https://your-proxy-server.com/playlist">
+              <button class="btn btn-primary" id="test-proxy">연결 테스트</button>
+            </div>
+            <div class="test-result" id="proxy-test-result"></div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <h4>프록시 사용</h4>
+              <p>설정된 프록시 서버를 통해 요청을 전송합니다</p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="proxy-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="info-box warning">
+          <div class="info-box-header">
+            <span class="info-icon">⚠️</span>
+            <h4>프록시 서버 필요</h4>
+          </div>
+          <p>
+            Twitch 화질 우회를 위해서는 해외에 위치한 프록시 서버가 필요합니다.
+            직접 서버를 운영하거나, Cloudflare Workers를 이용하여 무료로 구축할 수 있습니다.
+          </p>
+        </div>
+
+        <div class="code-section">
+          <div class="code-header">
+            <h4>Cloudflare Worker 예제 코드</h4>
+            <button class="btn btn-sm" id="copy-worker-code">복사</button>
+          </div>
+          <pre class="code-block"><code id="worker-code">addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request))
+})
+
+async function handleRequest(request) {
+  const url = new URL(request.url)
+  const targetUrl = url.searchParams.get('url')
+
+  if (!targetUrl) {
+    return new Response('Missing url parameter', { status: 400 })
+  }
+
+  const response = await fetch(targetUrl, {
+    headers: {
+      'User-Agent': request.headers.get('User-Agent'),
+    }
+  })
+
+  return new Response(response.body, {
+    headers: {
+      'Content-Type': response.headers.get('Content-Type'),
+      'Access-Control-Allow-Origin': '*',
+    }
+  })
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- 정보 섹션 -->
+      <section id="about" class="section">
+        <div class="section-header">
+          <h1>정보</h1>
+          <p>Stream Quality Bypass에 대하여</p>
+        </div>
+
+        <div class="about-content">
+          <div class="about-logo">
+            <span class="logo-icon large">▶</span>
+            <h2>Stream Quality Bypass</h2>
+            <p class="version">버전 1.0.0</p>
+          </div>
+
+          <div class="about-description">
+            <p>
+              Twitch와 치지직의 화질 제한을 우회하여
+              더 나은 스트리밍 경험을 제공하는 확장프로그램입니다.
+            </p>
+          </div>
+
+          <div class="features-list">
+            <h4>주요 기능</h4>
+            <ul>
+              <li>🎬 Twitch 한국 720p 제한 우회</li>
+              <li>🎮 치지직 그리드(P2P) 우회</li>
+              <li>⚡ 실시간 설정 변경</li>
+              <li>📊 우회 통계 확인</li>
+            </ul>
+          </div>
+
+          <div class="links-section">
+            <h4>링크</h4>
+            <div class="link-buttons">
+              <a href="https://github.com" target="_blank" class="btn btn-outline">
+                📁 GitHub
+              </a>
+              <a href="#" class="btn btn-outline" id="reset-settings">
+                🔄 설정 초기화
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Generator</title>
+</head>
+<body>
+  <h1>Stream Bypass 아이콘 생성기</h1>
+  <p>아래 버튼을 클릭하여 아이콘을 다운로드하세요.</p>
+
+  <canvas id="canvas16" width="16" height="16"></canvas>
+  <canvas id="canvas48" width="48" height="48"></canvas>
+  <canvas id="canvas128" width="128" height="128"></canvas>
+
+  <br><br>
+  <button onclick="downloadAll()">모든 아이콘 다운로드</button>
+
+  <script>
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      const radius = size * 0.1875; // 24/128
+
+      // Background
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath();
+      ctx.roundRect(0, 0, size, size, radius);
+      ctx.fill();
+
+      // Gradient for play button
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#a855f7');
+      gradient.addColorStop(1, '#6366f1');
+      ctx.fillStyle = gradient;
+
+      // Play triangle
+      const scale = size / 128;
+      ctx.beginPath();
+      ctx.moveTo(40 * scale, 36 * scale);
+      ctx.lineTo(88 * scale, 64 * scale);
+      ctx.lineTo(40 * scale, 92 * scale);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const canvas16 = document.getElementById('canvas16');
+    const canvas48 = document.getElementById('canvas48');
+    const canvas128 = document.getElementById('canvas128');
+
+    drawIcon(canvas16, 16);
+    drawIcon(canvas48, 48);
+    drawIcon(canvas128, 128);
+
+    function downloadCanvas(canvas, filename) {
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    function downloadAll() {
+      downloadCanvas(canvas16, 'icon16.png');
+      setTimeout(() => downloadCanvas(canvas48, 'icon48.png'), 100);
+      setTimeout(() => downloadCanvas(canvas128, 'icon128.png'), 200);
+    }
+  </script>
+</body>
+</html>

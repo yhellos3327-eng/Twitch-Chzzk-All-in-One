@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Quality Bypass</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <div class="logo">
+        <span class="logo-icon">▶</span>
+        <span class="logo-text">Stream Bypass</span>
+      </div>
+      <div class="version">v1.0.0</div>
+    </header>
+
+    <main class="popup-main">
+      <!-- Twitch 섹션 -->
+      <div class="platform-card twitch">
+        <div class="platform-header">
+          <div class="platform-info">
+            <span class="platform-icon twitch-icon">📺</span>
+            <span class="platform-name">Twitch</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="twitch-enabled">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="platform-status">
+          <span class="status-dot" id="twitch-status"></span>
+          <span class="status-text" id="twitch-status-text">비활성화</span>
+        </div>
+      </div>
+
+      <!-- 치지직 섹션 -->
+      <div class="platform-card chzzk">
+        <div class="platform-header">
+          <div class="platform-info">
+            <span class="platform-icon chzzk-icon">🎮</span>
+            <span class="platform-name">치지직</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="chzzk-enabled">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="platform-status">
+          <span class="status-dot" id="chzzk-status"></span>
+          <span class="status-text" id="chzzk-status-text">비활성화</span>
+        </div>
+      </div>
+
+      <!-- 통계 -->
+      <div class="stats-section">
+        <div class="stat-item">
+          <span class="stat-label">Twitch 우회</span>
+          <span class="stat-value" id="twitch-count">0회</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">치지직 우회</span>
+          <span class="stat-value" id="chzzk-count">0회</span>
+        </div>
+      </div>
+    </main>
+
+    <footer class="popup-footer">
+      <button class="btn-settings" id="open-settings">
+        ⚙️ 상세 설정
+      </button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
