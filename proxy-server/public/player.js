@@ -86,11 +86,23 @@
     // 화질 메뉴 업데이트
     function updateQualityMenu() {
         const menu = elements.qualityMenu();
-        menu.innerHTML = qualities.map((q, i) => `
-      <div class="quality-item ${i === currentQualityIndex ? 'active' : ''}" data-index="${i}">
-        ${q.name} ${q.resolution ? `<span style="color:#888">${q.resolution.split('x')[1]}p</span>` : ''}
-      </div>
-    `).join('');
+        menu.innerHTML = qualities.map((q, i) => {
+            const isAudioOnly = q.name === 'audio_only';
+            const separator = isAudioOnly && i > 0 ? '<div class="menu-separator"></div>' : '';
+
+            // 표시 이름 정리
+            let displayName = q.name;
+            if (displayName.includes('(source)')) displayName = displayName.replace('(source)', 'Source');
+            if (displayName === 'audio_only') displayName = 'Audio Only';
+
+            return `
+            ${separator}
+            <div class="quality-item ${i === currentQualityIndex ? 'active' : ''}" data-index="${i}">
+                ${displayName} 
+                ${q.resolution && !isAudioOnly ? `<span style="color:#888; font-size:12px; margin-left:8px;">${q.resolution.split('x')[1]}p</span>` : ''}
+            </div>
+            `;
+        }).join('');
 
         menu.querySelectorAll('.quality-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -174,14 +186,33 @@
     // ========== 채팅 iframe 설정 ==========
 
     // Twitch 채팅 iframe 로드
-    function loadChatIframe(channel) {
-        // 요소를 직접 다시 찾기 시도
+    function loadChatIframe(channel, attempts = 0) {
+        if (attempts > 10) {
+            console.error('[Chat] Failed to load chat iframe after 10 attempts');
+            return;
+        }
+
         let chatIframe = document.getElementById('chat-iframe');
 
+        // 요소가 없으면 동적으로 생성 시도
         if (!chatIframe) {
-            console.warn('[Chat] Chat iframe not found, retrying in 1s...');
-            setTimeout(() => loadChatIframe(channel), 1000);
-            return;
+            const container = document.getElementById('chat-container');
+            if (container) {
+                console.log('[Chat] Creating chat iframe dynamically');
+                chatIframe = document.createElement('iframe');
+                chatIframe.id = 'chat-iframe';
+                chatIframe.className = 'chat-iframe';
+                chatIframe.setAttribute('frameborder', '0');
+                chatIframe.setAttribute('scrolling', 'yes');
+                chatIframe.setAttribute('allowtransparency', 'true');
+
+                container.innerHTML = '';
+                container.appendChild(chatIframe);
+            } else {
+                console.warn(`[Chat] Chat container not found, retrying (${attempts + 1}/10)...`);
+                setTimeout(() => loadChatIframe(channel, attempts + 1), 1000);
+                return;
+            }
         }
 
         // 이미 로드된 경우 스킵 (채널이 같을 때)
@@ -190,8 +221,6 @@
         }
 
         // Twitch 채팅 팝아웃 URL (darkpopout으로 다크모드 적용)
-        // parent 파라미터가 필요할 수 있음 (CORS 관련) - 로컬/배포 환경에 따라 다름
-        // 하지만 iframe src는 보통 제약이 덜함
         const chatUrl = `https://www.twitch.tv/popout/${channel}/chat?darkpopout`;
 
         console.log('[Chat] Loading chat iframe:', chatUrl);
@@ -234,6 +263,20 @@
             console.log('[Player] Stream info:', streamInfo);
             qualities = streamInfo.qualities;
 
+            // 화질 정렬: 해상도(resolution) -> 대역폭(bandwidth) 내림차순
+            qualities.sort((a, b) => {
+                const resA = a.resolution ? parseInt(a.resolution.split('x')[1]) : 0;
+                const resB = b.resolution ? parseInt(b.resolution.split('x')[1]) : 0;
+
+                if (resA !== resB) return resB - resA;
+
+                const bwA = a.bandwidth ? parseInt(a.bandwidth) : 0;
+                const bwB = b.bandwidth ? parseInt(b.bandwidth) : 0;
+                return bwB - bwA;
+            });
+
+            console.log('[Player] Best quality selected:', qualities[0].name);
+
             // UI 업데이트
             elements.channelName().textContent = channel;
             document.title = `${channel} - Stream Bypass`;
@@ -272,7 +315,34 @@
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 console.log('[Player] Manifest parsed, starting playback');
                 hideOverlays();
-                video.play().catch(e => console.warn('[Player] Autoplay failed:', e));
+
+                // 브라우저 정책상 음소거 상태로 자동 재생 시도
+                video.muted = true;
+
+                const playPromise = video.play();
+
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('[Player] Autoplay started (muted)');
+                            // 자동 재생 성공 시, UI 업데이트
+                            updateVolumeUI();
+                        })
+                        .catch(error => {
+                            console.warn('[Player] Autoplay failed:', error);
+                            // 실패 시 음소거 해제하고 다시 시도해볼 수도 있지만, 보통 사용자 상호작용 필요
+                            showError('Click to play stream');
+                            // 클릭 이벤트 한 번으로 재생되도록 오버레이 클릭 리스너 추가
+                            const overlay = elements.errorOverlay();
+                            overlay.style.cursor = 'pointer';
+                            overlay.onclick = () => {
+                                video.play();
+                                hideOverlays();
+                                overlay.onclick = null;
+                            };
+                        });
+                }
+
                 updateQualityMenu();
                 elements.currentQuality().textContent = bestQuality.name;
 
@@ -284,6 +354,25 @@
         } catch (error) {
             console.error('[Player] Error:', error);
             showError(error.message);
+        }
+    }
+
+    // 볼륨 UI 업데이트
+    function updateVolumeUI() {
+        if (!video) return;
+        const muted = video.muted || video.volume === 0;
+
+        // 버튼 아이콘 토글
+        const muteBtn = elements.muteBtn();
+        if (muteBtn) {
+            muteBtn.querySelector('.icon-volume').style.display = muted ? 'none' : 'block';
+            muteBtn.querySelector('.icon-muted').style.display = muted ? 'block' : 'none';
+        }
+
+        // 슬라이더 업데이트
+        const slider = elements.volumeSlider();
+        if (slider) {
+            slider.value = muted ? 0 : video.volume * 100;
         }
     }
 
@@ -313,19 +402,18 @@
         // 음소거
         elements.muteBtn().addEventListener('click', () => {
             video.muted = !video.muted;
+            updateVolumeUI();
         });
 
         video.addEventListener('volumechange', () => {
-            const muted = video.muted || video.volume === 0;
-            elements.muteBtn().querySelector('.icon-volume').style.display = muted ? 'none' : 'block';
-            elements.muteBtn().querySelector('.icon-muted').style.display = muted ? 'block' : 'none';
-            elements.volumeSlider().value = muted ? 0 : video.volume * 100;
+            updateVolumeUI();
         });
 
         // 볼륨 슬라이더
         elements.volumeSlider().addEventListener('input', (e) => {
             video.volume = e.target.value / 100;
-            video.muted = false;
+            if (video.volume > 0) video.muted = false;
+            updateVolumeUI();
         });
 
         // 화질 메뉴

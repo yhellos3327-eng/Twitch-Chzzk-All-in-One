@@ -266,6 +266,12 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
+.menu-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
+}
+
 .quality-menu.active {
   display: block;
 }
