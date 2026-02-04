@@ -76,6 +76,66 @@
             <span class="live-indicator">● LIVE</span>
           </div>
           <div class="controls-right">
+            <!-- 설정 메뉴 -->
+            <div class="custom-selector">
+              <button class="ctrl-btn" id="settings-btn" title="Video Enhancement">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                 <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+              </button>
+              <div class="menu settings-menu" id="settings-menu">
+                <div class="settings-item">
+                  <div class="settings-header">
+                    <span>Video Enhancement</span>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="enhancement-toggle">
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="settings-separator"></div>
+
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>Sharpness</span>
+                        <span id="sharpness-value" class="value-text">1.0x</span>
+                    </div>
+                    <input type="range" id="sharpness-slider" class="range-slider" min="1" max="5" step="0.1" value="1">
+                </div>
+
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>Saturation</span>
+                        <span id="saturation-value" class="value-text">1.0x</span>
+                    </div>
+                    <input type="range" id="saturation-slider" class="range-slider" min="0" max="3" step="0.1" value="1">
+                </div>
+
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>Contrast</span>
+                        <span id="contrast-value" class="value-text">100%</span>
+                    </div>
+                    <input type="range" id="contrast-slider" class="range-slider" min="50" max="200" step="5" value="100">
+                </div>
+                
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>Brightness</span>
+                        <span id="brightness-value" class="value-text">100%</span>
+                    </div>
+                    <input type="range" id="brightness-slider" class="range-slider" min="50" max="200" step="5" value="100">
+                </div>
+
+                <div class="settings-separator"></div>
+                
+                <div class="settings-item center">
+                    <button id="reset-settings-btn" class="text-btn">Reset Defaults</button>
+                </div>
+              </div>
+            </div>
+
             <div class="quality-selector">
               <button class="ctrl-btn" id="quality-btn">
                 <span id="current-quality">Auto</span>
@@ -123,16 +183,31 @@
       
       <!-- 채팅 컨테이너: 프록시 호스팅이므로 iframe 직접 사용 가능 -->
       <div class="chat-container" id="chat-container">
-        <object 
-          id="chat-object"
-          class="chat-object"
-          frameborder="0"
-          scrolling="yes"
-          allowtransparency="true"
-        ></object>
+        <!-- 동적 생성됨 -->
       </div>
     </aside>
   </div>
+
+  <!-- SVG 필터 정의 (화면에 보이지 않음) -->
+  <svg width="0" height="0" style="position: absolute; pointer-events: none;">
+    <defs>
+      <filter id="video-filter">
+        <!-- 샤프닝 필터 (kernelMatrix는 JS로 동적 업데이트) -->
+        <feConvolveMatrix 
+          id="sharpness-matrix" 
+          order="3" 
+          edgeMode="duplicate" 
+          preserveAlpha="true"
+          kernelMatrix="0 0 0 0 1 0 0 0 0" />
+        
+        <!-- 색상 보정 필터 -->
+         <feColorMatrix 
+           id="color-matrix" 
+           type="saturate" 
+           values="1" />
+      </filter>
+    </defs>
+  </svg>
 
   <script src="player.js"></script>
 </body>

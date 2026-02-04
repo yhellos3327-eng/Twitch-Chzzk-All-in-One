@@ -126,11 +126,23 @@
       target.closest('[data-a-target="preview-card-channel-link"]') ||
       target.closest('[data-a-target="preview-card-image-link"]') ||
       target.closest('[class*="PreviewCard"]') ||
-      target.closest('article[class*="Layout"]');
+      target.closest('article[class*="Layout"]') ||
+      target.closest('div[data-target="directory-first-item"]') || // 카테고리 상단 아이템
+      target.closest('a[href*="/"]'); // 일반 링크 (최후의 수단, 채널명 추출에서 검증됨)
 
     if (streamCard) {
+      // 태그나 제목 클릭 시 무시 (썸네일/비디오 영역 클릭만 허용)
+      if (target.closest('[class*="ScTagContent"]') ||
+        target.closest('[class*="tw-title"]') ||
+        target.closest('h3') ||
+        target.closest('[data-a-target="preview-card-channel-link"]')) {
+        console.log(LOG_PREFIX, 'Ignored click on title/tag inside stream card');
+        return;
+      }
+
       const channel = findChannelFromElement(streamCard);
-      if (channel) {
+      // 채널명이 유효하고, 게임 카테고리 링크가 아닌 경우에만 오픈
+      if (channel && channel !== 'directory' && !channel.includes('/')) {
         console.log(LOG_PREFIX, 'Stream card clicked:', channel);
         event.preventDefault();
         event.stopPropagation();
@@ -181,7 +193,10 @@
       target.closest('.ScTagContent-sc-14s7ciu-1.kVhHfd') ||
       target.closest('.InjectLayout-sc-1i43xsx-0.fAYJcN.tw-image.tw-image-avatar') ||
       target.closest('[class*="ScTagContent"]') || // 태그 일반화
-      target.closest('[class*="tw-image-avatar"]')) { // 프사 일반화
+      target.closest('[class*="tw-image-avatar"]') || // 프사 일반화
+      target.closest('nav') || // 모든 네비게이션 태그 무시 (상단바, 사이드바 상단 등)
+      target.closest('[data-test-selector="top-nav__browse-link"]') || // 탐색 링크 명시적 제외
+      target.closest('[aria-label="탐색"]')) { // 탐색 라벨
       console.log(LOG_PREFIX, 'Click ignored due to exclude selector');
       return;
     }

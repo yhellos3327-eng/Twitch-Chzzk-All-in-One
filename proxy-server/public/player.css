@@ -592,3 +592,178 @@ body {
     display: none;
   }
 }
+
+/* =========================================
+   Video Enhancement Styles
+   ========================================= */
+
+/* 설정 메뉴 컨테이너 */
+.custom-selector {
+  position: relative;
+  margin-right: 8px;
+}
+
+.settings-menu {
+  position: absolute;
+  bottom: 50px;
+  right: -50px;
+  /* 오른쪽 정렬 조정 */
+  background: rgba(20, 20, 20, 0.95);
+  border-radius: 8px;
+  padding: 12px 0;
+  min-width: 250px;
+  display: none;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-menu.active {
+  display: block;
+}
+
+.settings-item {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-item.column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.settings-item.center {
+  justify-content: center;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  font-weight: 600;
+  font-size: 14px;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.settings-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #ddd;
+}
+
+.value-text {
+  color: #9147ff;
+  font-weight: bold;
+}
+
+.settings-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 6px 0;
+}
+
+/* 토글 스위치 */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider.round {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #555;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.slider.round:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked+.slider.round {
+  background-color: #9147ff;
+}
+
+input:checked+.slider.round:before {
+  transform: translateX(16px);
+}
+
+/* 범위 슬라이더 */
+.range-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #444;
+  border-radius: 2px;
+  outline: none;
+  margin: 8px 0;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  transition: background .15s ease-in-out, transform 0.15s;
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  background: #9147ff;
+  transform: scale(1.2);
+}
+
+/* 텍스트 버튼 */
+.text-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #aaa;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.text-btn:hover {
+  color: #fff;
+  border-color: #9147ff;
+  background: rgba(145, 71, 255, 0.1);
+}
+
+/* 비디오 필터 적용 클래스 */
+.video-enhanced {
+  /* SVG 필터와 CSS 필터 조합 */
+  /* SVG 필터는 선명도 조절, CSS 필터는 밝기/대비/채도 조절 */
+  filter: url(#video-filter) contrast(var(--contrast, 100%)) brightness(var(--brightness, 100%));
+}

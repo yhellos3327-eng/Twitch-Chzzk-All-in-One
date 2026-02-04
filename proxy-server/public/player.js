@@ -532,6 +532,188 @@
         });
     }
 
+    // ========== 비디오 화질 개선 (Video Enhancement) ==========
+    const VideoEnhancer = {
+        settings: {
+            enabled: false,
+            sharpness: 1.0,
+            saturation: 1.0,
+            contrast: 100,
+            brightness: 100
+        },
+
+        elements: {
+            toggle: null,
+            sharpness: null,
+            saturation: null,
+            contrast: null,
+            brightness: null,
+            resetBtn: null,
+            matrix: null,
+            colorMatrix: null,
+            menu: null,
+            btn: null,
+            settingsMenu: null
+        },
+
+        init() {
+            // 요소 참조
+            this.elements.toggle = document.getElementById('enhancement-toggle');
+            this.elements.sharpness = document.getElementById('sharpness-slider');
+            this.elements.saturation = document.getElementById('saturation-slider');
+            this.elements.contrast = document.getElementById('contrast-slider');
+            this.elements.brightness = document.getElementById('brightness-slider');
+            this.elements.resetBtn = document.getElementById('reset-settings-btn');
+            this.elements.matrix = document.getElementById('sharpness-matrix');
+            this.elements.colorMatrix = document.getElementById('color-matrix');
+            this.elements.btn = document.getElementById('settings-btn');
+            this.elements.settingsMenu = document.getElementById('settings-menu');
+
+            if (!this.elements.toggle) return; // 요소가 없으면 중단
+
+            // 저장된 설정 로드
+            this.loadSettings();
+
+            // 이벤트 리스너 설정
+            this.setupListeners();
+
+            // 초기 적용
+            this.applyFilters();
+        },
+
+        loadSettings() {
+            try {
+                const saved = localStorage.getItem('videoEnhancementSettings');
+                if (saved) {
+                    this.settings = { ...this.settings, ...JSON.parse(saved) };
+                }
+            } catch (e) {
+                console.error('[Enhancer] Failed to load settings:', e);
+            }
+
+            // UI 업데이트
+            this.elements.toggle.checked = this.settings.enabled;
+            this.elements.sharpness.value = this.settings.sharpness;
+            this.elements.saturation.value = this.settings.saturation;
+            this.elements.contrast.value = this.settings.contrast;
+            this.elements.brightness.value = this.settings.brightness;
+
+            this.updateLabels();
+        },
+
+        saveSettings() {
+            try {
+                localStorage.setItem('videoEnhancementSettings', JSON.stringify(this.settings));
+            } catch (e) { }
+        },
+
+        setupListeners() {
+            // 토글
+            this.elements.toggle.addEventListener('change', (e) => {
+                this.settings.enabled = e.target.checked;
+                this.applyFilters();
+                this.saveSettings();
+            });
+
+            // 슬라이더들
+            const sliders = [
+                { el: this.elements.sharpness, key: 'sharpness' },
+                { el: this.elements.saturation, key: 'saturation' },
+                { el: this.elements.contrast, key: 'contrast' },
+                { el: this.elements.brightness, key: 'brightness' }
+            ];
+
+            sliders.forEach(({ el, key }) => {
+                el.addEventListener('input', (e) => {
+                    this.settings[key] = parseFloat(e.target.value);
+                    this.updateLabels();
+                    this.applyFilters();
+                    this.saveSettings();
+                });
+            });
+
+            // 리셋 버튼
+            this.elements.resetBtn.addEventListener('click', () => {
+                this.resetSettings();
+            });
+
+            // 메뉴 토글
+            this.elements.btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.elements.settingsMenu.classList.toggle('active');
+                // 화질 메뉴 닫기
+                elements.qualityMenu().classList.remove('active');
+            });
+
+            // 메뉴 닫기 (외부 클릭)
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#settings-menu') && !e.target.closest('#settings-btn')) {
+                    this.elements.settingsMenu.classList.remove('active');
+                }
+            });
+        },
+
+        updateLabels() {
+            document.getElementById('sharpness-value').textContent = this.settings.sharpness.toFixed(1) + 'x';
+            document.getElementById('saturation-value').textContent = this.settings.saturation.toFixed(1) + 'x';
+            document.getElementById('contrast-value').textContent = this.settings.contrast + '%';
+            document.getElementById('brightness-value').textContent = this.settings.brightness + '%';
+        },
+
+        resetSettings() {
+            this.settings = {
+                enabled: false,
+                sharpness: 1.0,
+                saturation: 1.0,
+                contrast: 100,
+                brightness: 100
+            };
+            this.loadSettings(); // UI 반영
+            this.applyFilters();
+            this.saveSettings();
+        },
+
+        applyFilters() {
+            if (!video) video = document.getElementById('video-player');
+            if (!video) return;
+
+            if (!this.settings.enabled) {
+                video.classList.remove('video-enhanced');
+                video.style.filter = '';
+                return;
+            }
+
+            video.classList.add('video-enhanced');
+
+            // 1. 샤프닝 (SVG feConvolveMatrix) update
+            // Kernel calculation: 0 -k 0 -k 4k+1 -k 0 -k 0  (simplified Laplacian)
+            // Or use the formula from the user script:
+            // k = intensity, off = -((k - 1) / 4)
+            // matrix = 0 off 0 off k off 0 off 0
+
+            const k = this.settings.sharpness;
+            const off = -((k - 1) / 4);
+            const matrix = `0 ${off} 0 ${off} ${k} ${off} 0 ${off} 0`;
+
+            if (this.elements.matrix) {
+                this.elements.matrix.setAttribute('kernelMatrix', matrix);
+            }
+
+            // 2. 채도 (SVG feColorMatrix) update
+            // CSS saturate filter is simpler, but since we use SVG filter for sharpness,
+            // we can use feColorMatrix type="saturate" inside the same filter.
+            if (this.elements.colorMatrix) {
+                this.elements.colorMatrix.setAttribute('values', this.settings.saturation);
+            }
+
+            // 3. 대비/밝기 (CSS filter chaining)
+            // video-enhanced 클래스에 SVG filter url이 이미 적용됨
+            // 추가적인 CSS 속성 변수 업데이트
+            video.style.setProperty('--contrast', `${this.settings.contrast}%`);
+            video.style.setProperty('--brightness', `${this.settings.brightness}%`);
+        }
+    };
+
     // 초기화
     async function init() {
         console.log('[Player] Initializing...');
@@ -544,6 +726,7 @@
         }
 
         setupControls();
+        VideoEnhancer.init(); // VideoEnhancer 초기화
         startStream(currentChannel);
     }
 
