@@ -203,41 +203,46 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 정적 파일 서빙 (player 페이지)
-  const MIME_TYPES = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.svg': 'image/svg+xml',
-  };
+  // API 경로는 정적 파일로 처리하지 않음
+  const isApiRoute = req.url.startsWith('/stream/') || req.url.startsWith('/proxy');
 
-  // 루트 또는 /player로 접근 시 player.html 제공
-  const parsedUrl = url.parse(req.url, true);
-  let filePath = parsedUrl.pathname;
+  // 정적 파일 서빙 (player 페이지) - API 경로가 아닌 경우만
+  if (!isApiRoute) {
+    const MIME_TYPES = {
+      '.html': 'text/html',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.svg': 'image/svg+xml',
+    };
 
-  if (filePath === '/' || filePath === '/player' || filePath === '/player.html') {
-    filePath = '/player.html';
-  }
+    // 루트 또는 /player로 접근 시 player.html 제공
+    const parsedUrl = url.parse(req.url, true);
+    let filePath = parsedUrl.pathname;
 
-  // 정적 파일 체크
-  const fullPath = path.join(PUBLIC_DIR, filePath);
-  const ext = path.extname(fullPath);
+    if (filePath === '/' || filePath === '/player' || filePath === '/player.html') {
+      filePath = '/player.html';
+    }
 
-  if (MIME_TYPES[ext] && fs.existsSync(fullPath)) {
-    try {
-      const content = fs.readFileSync(fullPath);
-      res.writeHead(200, {
-        ...corsHeaders,
-        'Content-Type': MIME_TYPES[ext],
-        'Cache-Control': 'no-cache'
-      });
-      res.end(content);
-      return;
-    } catch (e) {
-      console.error('[Static] Error reading file:', e.message);
+    // 정적 파일 체크
+    const fullPath = path.join(PUBLIC_DIR, filePath);
+    const ext = path.extname(fullPath);
+
+    if (MIME_TYPES[ext] && fs.existsSync(fullPath)) {
+      try {
+        const content = fs.readFileSync(fullPath);
+        res.writeHead(200, {
+          ...corsHeaders,
+          'Content-Type': MIME_TYPES[ext],
+          'Cache-Control': 'no-cache'
+        });
+        res.end(content);
+        return;
+      } catch (e) {
+        console.error('[Static] Error reading file:', e.message);
+      }
     }
   }
 

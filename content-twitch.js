@@ -106,7 +106,7 @@
     try {
       // 프록시 서버의 player 페이지 사용 (채팅 iframe 임베드 가능)
       const proxyUrl = settings?.twitch?.proxyUrl || 'https://rotten-kore-twitch-chzzk-all-in-one-6d9b3001.koyeb.app';
-      const playerUrl = `${proxyUrl}/?channel=${encodeURIComponent(channel)}`;
+      const playerUrl = `${proxyUrl}?channel=${encodeURIComponent(channel)}`;
       window.open(playerUrl, '_blank');
     } catch (e) {
       // Extension context invalidated - 페이지 새로고침 필요
