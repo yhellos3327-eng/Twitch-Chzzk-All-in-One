@@ -1,7 +1,7 @@
 // Stream Quality Bypass - Twitch Click Interceptor
 // 트위치 페이지에서 클릭을 가로채서 확장 프로그램 플레이어로 전송
 
-(function() {
+(function () {
   'use strict';
 
   const LOG_PREFIX = '[StreamBypass:Twitch]';
@@ -46,7 +46,7 @@
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { }
 
     return null;
   }
@@ -75,15 +75,15 @@
 
     // 4. data 속성에서 찾기
     const dataChannel = element.getAttribute('data-a-id') ||
-                        element.getAttribute('data-test-selector')?.match(/([a-zA-Z0-9_]+)/)?.[1];
+      element.getAttribute('data-test-selector')?.match(/([a-zA-Z0-9_]+)/)?.[1];
     if (dataChannel) {
       return dataChannel.toLowerCase();
     }
 
     // 5. 텍스트에서 채널명 추출 시도 (사이드바용)
     const titleEl = element.querySelector('[data-a-target="side-nav-title"]') ||
-                    element.querySelector('[class*="CoreText"]') ||
-                    element.querySelector('p');
+      element.querySelector('[class*="CoreText"]') ||
+      element.querySelector('p');
     if (titleEl) {
       const text = titleEl.textContent?.trim();
       if (text && /^[a-zA-Z0-9_]+$/.test(text)) {
@@ -103,8 +103,16 @@
 
     console.log(LOG_PREFIX, 'Opening player for:', channel);
 
-    const playerUrl = chrome.runtime.getURL(`player.html?channel=${encodeURIComponent(channel)}`);
-    window.open(playerUrl, '_blank');
+    try {
+      // 프록시 서버의 player 페이지 사용 (채팅 iframe 임베드 가능)
+      const proxyUrl = settings?.twitch?.proxyUrl || 'https://rotten-kore-twitch-chzzk-all-in-one-6d9b3001.koyeb.app';
+      const playerUrl = `${proxyUrl}/?channel=${encodeURIComponent(channel)}`;
+      window.open(playerUrl, '_blank');
+    } catch (e) {
+      // Extension context invalidated - 페이지 새로고침 필요
+      console.warn(LOG_PREFIX, 'Extension context invalidated, please refresh the page');
+      alert('확장 프로그램이 업데이트되었습니다. 페이지를 새로고침해주세요.');
+    }
   }
 
   // 스트림 카드 클릭 핸들러
@@ -115,10 +123,10 @@
 
     // 클릭된 요소가 스트림 카드인지 확인
     const streamCard = target.closest('.directory-first-item') ||
-                       target.closest('[data-a-target="preview-card-channel-link"]') ||
-                       target.closest('[data-a-target="preview-card-image-link"]') ||
-                       target.closest('[class*="PreviewCard"]') ||
-                       target.closest('article[class*="Layout"]');
+      target.closest('[data-a-target="preview-card-channel-link"]') ||
+      target.closest('[data-a-target="preview-card-image-link"]') ||
+      target.closest('[class*="PreviewCard"]') ||
+      target.closest('article[class*="Layout"]');
 
     if (streamCard) {
       const channel = findChannelFromElement(streamCard);
@@ -140,14 +148,14 @@
 
     // 사이드바 요소 확인
     const sidebarItem = target.closest('[data-a-target="side-nav-card"]') ||
-                        target.closest('[class*="side-nav-card"]') ||
-                        target.closest('.tw-transition-group a[href]') ||
-                        target.closest('[data-a-id]');
+      target.closest('[class*="side-nav-card"]') ||
+      target.closest('.tw-transition-group a[href]') ||
+      target.closest('[data-a-id]');
 
     // 사이드바 내부 확인
     const isInSidebar = target.closest('#side-nav') ||
-                        target.closest('[class*="side-nav"]') ||
-                        target.closest('[data-a-target="side-nav"]');
+      target.closest('[class*="side-nav"]') ||
+      target.closest('[data-a-target="side-nav"]');
 
     if (sidebarItem && isInSidebar) {
       const channel = findChannelFromElement(sidebarItem);

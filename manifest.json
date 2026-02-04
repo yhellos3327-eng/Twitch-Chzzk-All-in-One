@@ -19,13 +19,21 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.twitch.tv/*"],
-      "js": ["content-twitch.js"],
+      "matches": [
+        "*://*.twitch.tv/*"
+      ],
+      "js": [
+        "content-twitch.js"
+      ],
       "run_at": "document_start"
     },
     {
-      "matches": ["*://*.chzzk.naver.com/*"],
-      "js": ["content-chzzk.js"],
+      "matches": [
+        "*://*.chzzk.naver.com/*"
+      ],
+      "js": [
+        "content-chzzk.js"
+      ],
       "run_at": "document_start"
     }
   ],
@@ -45,8 +53,15 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["player.html", "player.js", "player.css"],
-      "matches": ["*://*.twitch.tv/*"]
+      "resources": [
+        "player.html",
+        "player.js",
+        "player.css",
+        "hls.min.js"
+      ],
+      "matches": [
+        "*://*.twitch.tv/*"
+      ]
     }
   ]
 }

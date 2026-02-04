@@ -1,7 +1,13 @@
 // Stream Bypass - Player Page Script
 
-(function() {
+(function () {
   'use strict';
+
+  const TWITCH_CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
+
+  // 광고 차단을 위한 플레이어 타입들
+  const AD_FREE_PLAYER_TYPES = ['embed', 'popout', 'site'];
+  const AD_SIGNIFIER = 'stitched';
 
   let hls = null;
   let video = null;
@@ -9,6 +15,7 @@
   let currentChannel = null;
   let qualities = [];
   let currentQualityIndex = 0;
+  let adDetected = false;
 
   // URL에서 채널명 추출
   function getChannelFromUrl() {
@@ -27,21 +34,160 @@
     }
   }
 
-  // 스트림 정보 가져오기
-  async function getStreamInfo(channel) {
-    if (!settings?.twitch?.proxyUrl) {
-      throw new Error('Proxy URL not set');
+  // Twitch GQL API로 토큰 가져오기
+  async function getAccessToken(channel, playerType = 'embed') {
+    const query = {
+      operationName: 'PlaybackAccessToken_Template',
+      query: `query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {
+        streamPlaybackAccessToken(channelName: $login, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isLive) {
+          value
+          signature
+          __typename
+        }
+        videoPlaybackAccessToken(id: $vodID, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isVod) {
+          value
+          signature
+          __typename
+        }
+      }`,
+      variables: {
+        isLive: true,
+        login: channel,
+        isVod: false,
+        vodID: '',
+        playerType: playerType
+      }
+    };
+
+    const response = await fetch('https://gql.twitch.tv/gql', {
+      method: 'POST',
+      headers: {
+        'Client-ID': TWITCH_CLIENT_ID,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(query),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get access token: HTTP ${response.status}`);
     }
 
-    const proxyUrl = settings.twitch.proxyUrl.replace(/\/$/, '');
-    const url = `${proxyUrl}/stream/${channel}`;
+    const data = await response.json();
+    console.log('[Player] Token response for playerType', playerType);
+
+    if (!data.data?.streamPlaybackAccessToken) {
+      throw new Error('Stream not found or offline');
+    }
+
+    return data.data.streamPlaybackAccessToken;
+  }
+
+  // Playlist 가져오기
+  async function getPlaylist(channel, token, sig) {
+    const proxyUrl = settings?.twitch?.proxyUrl?.replace(/\/$/, '');
+
+    const params = new URLSearchParams({
+      allow_source: 'true',
+      allow_audio_only: 'true',
+      allow_spectre: 'true',
+      p: Math.floor(Math.random() * 999999).toString(),
+      player: 'twitchweb',
+      playlist_include_framerate: 'true',
+      segment_preference: '4',
+      sig: sig,
+      token: token,
+    });
+
+    const playlistUrl = `https://usher.ttvnw.net/api/channel/hls/${channel}.m3u8?${params.toString()}`;
+    const url = proxyUrl ? `${proxyUrl}/proxy?url=${encodeURIComponent(playlistUrl)}` : playlistUrl;
+    console.log('[Player] Fetching playlist via:', proxyUrl ? 'proxy' : 'direct');
 
     const response = await fetch(url);
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || `HTTP ${response.status}`);
+      throw new Error(`Failed to get playlist: HTTP ${response.status}`);
     }
-    return await response.json();
+
+    return await response.text();
+  }
+
+  // Playlist 파싱
+  function parsePlaylist(playlistText) {
+    const lines = playlistText.split('\n');
+    const qualities = [];
+    let currentQuality = null;
+
+    for (const line of lines) {
+      if (line.startsWith('#EXT-X-MEDIA:')) {
+        const nameMatch = line.match(/NAME="([^"]+)"/);
+        const groupMatch = line.match(/GROUP-ID="([^"]+)"/);
+        if (nameMatch) {
+          currentQuality = { name: nameMatch[1], group: groupMatch?.[1] };
+        }
+      } else if (line.startsWith('#EXT-X-STREAM-INF:')) {
+        const resMatch = line.match(/RESOLUTION=(\d+x\d+)/);
+        const fpsMatch = line.match(/FRAME-RATE=([\d.]+)/);
+        const bwMatch = line.match(/BANDWIDTH=(\d+)/);
+        if (currentQuality) {
+          currentQuality.resolution = resMatch?.[1];
+          currentQuality.fps = fpsMatch?.[1];
+          currentQuality.bandwidth = bwMatch?.[1];
+        }
+      } else if (line.startsWith('http') && currentQuality) {
+        currentQuality.url = line.trim();
+        qualities.push(currentQuality);
+        currentQuality = null;
+      }
+    }
+
+    return qualities;
+  }
+
+  // 스트림 정보 가져오기
+  async function getStreamInfo(channel) {
+    console.log('[Player] Getting stream info for:', channel);
+
+    let tokenData = null;
+    let usedPlayerType = 'embed';
+
+    for (const playerType of AD_FREE_PLAYER_TYPES) {
+      try {
+        console.log('[Player] Trying playerType:', playerType);
+        tokenData = await getAccessToken(channel, playerType);
+        usedPlayerType = playerType;
+
+        const tokenValue = JSON.parse(tokenData.value);
+        if (!tokenValue.ads) {
+          console.log('[Player] Found ad-free token with playerType:', playerType);
+          break;
+        }
+      } catch (e) {
+        console.warn('[Player] Failed with playerType', playerType, ':', e.message);
+        continue;
+      }
+    }
+
+    if (!tokenData) {
+      throw new Error('Failed to get access token with any playerType');
+    }
+
+    const token = tokenData.value;
+    const sig = tokenData.signature;
+
+    console.log('[Player] Got token with playerType:', usedPlayerType);
+
+    const playlistText = await getPlaylist(channel, token, sig);
+    console.log('[Player] Playlist received, length:', playlistText.length);
+
+    const qualities = parsePlaylist(playlistText);
+
+    if (qualities.length === 0) {
+      throw new Error('No qualities found in playlist');
+    }
+
+    console.log('[Player] Parsed qualities:', qualities.length);
+
+    return { channel, qualities, playlist: playlistText };
   }
 
   // UI 요소들
@@ -61,12 +207,15 @@
     currentQuality: () => document.getElementById('current-quality'),
     fullscreenBtn: () => document.getElementById('fullscreen-btn'),
     qualityBadge: () => document.getElementById('quality-badge'),
-    chatFrame: () => document.getElementById('chat-frame'),
     pipBtn: () => document.getElementById('pip-btn'),
     openTwitchBtn: () => document.getElementById('open-twitch'),
     toggleChatBtn: () => document.getElementById('toggle-chat'),
+    refreshChatBtn: () => document.getElementById('refresh-chat'),
     sidebar: () => document.getElementById('sidebar'),
     app: () => document.querySelector('.app'),
+    chatSandbox: () => document.getElementById('chat-sandbox'),
+    chatContainer: () => document.getElementById('chat-container'),
+    popoutChatBtn: () => document.getElementById('popout-chat'),
   };
 
   // 로딩 표시
@@ -98,7 +247,6 @@
       </div>
     `).join('');
 
-    // 클릭 이벤트
     menu.querySelectorAll('.quality-item').forEach(item => {
       item.addEventListener('click', () => {
         const index = parseInt(item.dataset.index);
@@ -117,11 +265,8 @@
 
     console.log('[Player] Changing quality to:', quality.name);
 
-    // 현재 재생 위치 저장
-    const currentTime = video.currentTime;
     const wasPlaying = !video.paused;
 
-    // HLS 소스 변경
     if (hls) {
       hls.destroy();
     }
@@ -130,7 +275,10 @@
       debug: false,
       enableWorker: true,
       lowLatencyMode: true,
+      fLoader: createAdFilterLoader(Hls.DefaultConfig.loader),
     });
+
+    setupHlsEvents(hls);
 
     hls.loadSource(quality.url);
     hls.attachMedia(video);
@@ -141,11 +289,9 @@
       }
     });
 
-    // UI 업데이트
     elements.currentQuality().textContent = quality.name;
     updateQualityMenu();
 
-    // 뱃지 업데이트
     const badge = elements.qualityBadge();
     if (quality.name.includes('1080') || quality.resolution?.includes('1920')) {
       badge.textContent = '1080p';
@@ -156,6 +302,100 @@
     } else {
       badge.textContent = quality.name;
     }
+  }
+
+  // 커스텀 Fragment Loader (광고 세그먼트 필터링)
+  function createAdFilterLoader(DefaultLoader) {
+    return class AdFilterLoader extends DefaultLoader {
+      load(context, config, callbacks) {
+        const url = context.url;
+
+        if (url && (
+          url.includes('stitched-ad') ||
+          url.includes('advertisement') ||
+          url.includes('/ad/') ||
+          url.includes('amazon-adsystem')
+        )) {
+          console.log('[Player] Blocking ad segment:', url.substring(0, 80) + '...');
+          adDetected = true;
+
+          callbacks.onSuccess({
+            data: new ArrayBuffer(0),
+            url: url,
+          }, context.stats, context);
+          return;
+        }
+
+        super.load(context, config, callbacks);
+      }
+    };
+  }
+
+  // HLS 이벤트 설정
+  function setupHlsEvents(hlsInstance) {
+    hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+      console.error('[Player] HLS error:', data);
+
+      if (adDetected && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        console.log('[Player] Network error during ad skip, ignoring');
+        adDetected = false;
+        return;
+      }
+
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            console.log('[Player] Network error, trying to recover...');
+            hlsInstance.startLoad();
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            console.log('[Player] Media error, trying to recover...');
+            hlsInstance.recoverMediaError();
+            break;
+          default:
+            showError('Fatal playback error. Try refreshing.');
+            break;
+        }
+      }
+    });
+  }
+
+  // ========== 채팅 sandbox iframe 설정 ==========
+
+  // Twitch 채팅을 sandbox iframe으로 로드
+  function loadChatEmbed(channel) {
+    const chatSandbox = elements.chatSandbox();
+
+    if (!chatSandbox) {
+      console.warn('[Chat] Chat sandbox not found');
+      return;
+    }
+
+    // sandbox 페이지에 채널 정보를 URL 파라미터로 전달
+    const sandboxUrl = chrome.runtime.getURL(`chat-sandbox.html?channel=${channel}`);
+
+    console.log('[Chat] Loading chat via sandbox iframe:', channel);
+
+    // sandbox iframe src 설정
+    chatSandbox.src = sandboxUrl;
+  }
+
+  // 채팅 새로고침
+  function refreshChat() {
+    const chatSandbox = elements.chatSandbox();
+
+    if (chatSandbox && currentChannel) {
+      console.log('[Chat] Refreshing chat');
+      // postMessage로 새로고침 요청
+      chatSandbox.contentWindow.postMessage({ type: 'refreshChat' }, '*');
+    }
+  }
+
+  // 채팅 팝업 열기
+  function openChatPopup() {
+    if (!currentChannel) return;
+    const chatUrl = `https://www.twitch.tv/popout/${currentChannel}/chat?darkpopout`;
+    window.open(chatUrl, 'twitch-chat', 'width=400,height=600,resizable=yes,scrollbars=yes');
   }
 
   // 스트림 시작
@@ -178,8 +418,8 @@
       elements.channelName().textContent = channel;
       document.title = `${channel} - Stream Bypass`;
 
-      // 채팅 프레임 설정
-      elements.chatFrame().src = `https://www.twitch.tv/embed/${channel}/chat?parent=${chrome.runtime.id}&darkpopout`;
+      // 채팅 object 태그로 로드
+      loadChatEmbed(channel);
 
       // 1080p 확인 및 통계
       const has1080p = qualities.some(q => q.name.includes('1080') || q.resolution?.includes('1920'));
@@ -200,9 +440,11 @@
         enableWorker: true,
         lowLatencyMode: true,
         backBufferLength: 90,
+        fLoader: createAdFilterLoader(Hls.DefaultConfig.loader),
       });
 
-      // 최고 화질 선택
+      setupHlsEvents(hls);
+
       const bestQuality = qualities[0];
       currentQualityIndex = 0;
 
@@ -216,28 +458,8 @@
         updateQualityMenu();
         elements.currentQuality().textContent = bestQuality.name;
 
-        // 뱃지 설정
         if (bestQuality.name.includes('1080') || bestQuality.resolution?.includes('1920')) {
           elements.qualityBadge().textContent = '1080p';
-        }
-      });
-
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('[Player] HLS error:', data);
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log('[Player] Network error, trying to recover...');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log('[Player] Media error, trying to recover...');
-              hls.recoverMediaError();
-              break;
-            default:
-              showError('Fatal playback error. Try refreshing.');
-              break;
-          }
         }
       });
 
@@ -341,6 +563,18 @@
       elements.app().classList.toggle('chat-hidden');
     });
 
+    // 채팅 새로고침
+    const refreshChatButton = elements.refreshChatBtn();
+    if (refreshChatButton) {
+      refreshChatButton.addEventListener('click', refreshChat);
+    }
+
+    // 채팅 팝업
+    const popoutChatButton = elements.popoutChatBtn();
+    if (popoutChatButton) {
+      popoutChatButton.addEventListener('click', openChatPopup);
+    }
+
     // 재시도
     elements.retryBtn().addEventListener('click', () => {
       if (currentChannel) {
@@ -372,6 +606,12 @@
         case 'm':
           elements.muteBtn().click();
           break;
+        case 'c':
+          elements.toggleChatBtn().click();
+          break;
+        case 'r':
+          refreshChat();
+          break;
         case 'ArrowUp':
           e.preventDefault();
           video.volume = Math.min(1, video.volume + 0.1);
@@ -397,14 +637,16 @@
 
     await loadSettings();
 
-    if (!settings?.twitch?.proxyUrl) {
-      showError('Proxy URL not set. Please configure in extension settings.');
-      return;
-    }
-
     setupControls();
     startStream(currentChannel);
   }
+
+  // 페이지 언로드 시 정리
+  window.addEventListener('beforeunload', () => {
+    if (hls) {
+      hls.destroy();
+    }
+  });
 
   // 페이지 로드 시 초기화
   if (document.readyState === 'loading') {

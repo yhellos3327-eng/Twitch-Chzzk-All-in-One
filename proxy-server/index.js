@@ -1,8 +1,11 @@
 const http = require('http');
 const https = require('https');
 const url = require('url');
+const fs = require('fs');
+const path = require('path');
 
 const PORT = process.env.PORT || 8080;
+const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // CORS 헤더
 const corsHeaders = {
@@ -112,6 +115,7 @@ async function getStreamToken(channel) {
   });
 
   let data = JSON.parse(response.body.toString());
+  console.log('[Token] Persisted query response:', JSON.stringify(data).substring(0, 300));
 
   // persistedQuery가 실패하면 일반 쿼리로 재시도
   if (!data.data?.streamPlaybackAccessToken) {
@@ -150,6 +154,7 @@ async function getStreamToken(channel) {
     });
 
     data = JSON.parse(response.body.toString());
+    console.log('[Token] Full query response:', JSON.stringify(data).substring(0, 300));
   }
 
   return data;
@@ -192,10 +197,48 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Health check
-  if (req.url === '/health' || req.url === '/') {
+  if (req.url === '/health') {
     res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', service: 'twitch-proxy' }));
     return;
+  }
+
+  // 정적 파일 서빙 (player 페이지)
+  const MIME_TYPES = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+  };
+
+  // 루트 또는 /player로 접근 시 player.html 제공
+  const parsedUrl = url.parse(req.url, true);
+  let filePath = parsedUrl.pathname;
+
+  if (filePath === '/' || filePath === '/player' || filePath === '/player.html') {
+    filePath = '/player.html';
+  }
+
+  // 정적 파일 체크
+  const fullPath = path.join(PUBLIC_DIR, filePath);
+  const ext = path.extname(fullPath);
+
+  if (MIME_TYPES[ext] && fs.existsSync(fullPath)) {
+    try {
+      const content = fs.readFileSync(fullPath);
+      res.writeHead(200, {
+        ...corsHeaders,
+        'Content-Type': MIME_TYPES[ext],
+        'Cache-Control': 'no-cache'
+      });
+      res.end(content);
+      return;
+    } catch (e) {
+      console.error('[Static] Error reading file:', e.message);
+    }
   }
 
   // 스트림 정보 API (토큰 + playlist 한번에)
