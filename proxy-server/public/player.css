@@ -10,6 +10,10 @@
   --slider-bg: #3a3a3d;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body,
 html {
   margin: 0;
@@ -18,11 +22,10 @@ html {
   height: 100%;
   overflow: hidden;
   background-color: #000;
-  font-family: 'Inter', 'Roobert', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Inter', sans-serif;
   color: var(--text-main);
 }
 
-/* Video Player Container */
 #player-container {
   position: relative;
   width: 100%;
@@ -30,6 +33,7 @@ html {
   display: flex;
   justify-content: center;
   align-items: center;
+  background: #000;
 }
 
 #video-player {
@@ -38,73 +42,236 @@ html {
   object-fit: contain;
 }
 
-/* UI Overlay Controls */
-.controls-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  /* Let clicks pass through to video */
-  transition: opacity 0.3s ease;
-}
-
-/* Top Bar (Channel Info) */
+/* ================= Top Bar ================= */
 .top-bar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  padding: 20px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+  height: 80px;
+  padding: 0 24px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   pointer-events: auto;
-  z-index: 10;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-/* Settings Button & Menu Container */
-.settings-container {
+#player-container:hover .top-bar {
+  opacity: 1;
+}
+
+.channel-info-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profile-container {
   position: relative;
-  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
 }
 
-.icon-btn {
-  background: transparent;
+#profile-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--primary-color);
+  object-fit: cover;
+  background: #1f1f23;
+}
+
+.live-badge {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #e91916;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.text-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.channel-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+#channel-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.title-row {
+  font-size: 13px;
+  color: #e0e0e0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 600px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#game-name {
+  color: var(--primary-color);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.viewer-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffcccc;
+}
+
+.red-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #e91916;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 4px #e91916;
+}
+
+/* ================= Control Bar (Bottom) ================= */
+.control-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  padding: 0 24px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#player-container:hover .control-bar {
+  opacity: 1;
+}
+
+.control-left,
+.control-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-btn {
+  background: none;
   border: none;
   color: var(--text-main);
   cursor: pointer;
   padding: 8px;
   border-radius: 4px;
-  transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s;
 }
 
-.icon-btn:hover {
+.control-btn:hover {
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* Settings Menu (Main) */
+.control-text-btn {
+  background: none;
+  border: none;
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.control-text-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.volume-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-slider {
+  width: 0;
+  overflow: hidden;
+  transition: width 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+  appearance: none;
+  height: 4px;
+  background: var(--slider-bg);
+  border-radius: 2px;
+}
+
+.volume-group:hover .volume-slider {
+  width: 80px;
+  opacity: 1;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+}
+
+/* ================= Settings Menu ================= */
 .settings-menu {
   position: absolute;
-  top: 50px;
-  right: 0;
+  top: 90px;
+  right: 24px;
   width: 320px;
   background-color: var(--bg-menu);
   backdrop-filter: blur(10px);
   border-radius: 8px;
   padding: 0;
   display: none;
-  /* JS toggles 'active' */
   flex-direction: column;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   border: 1px solid var(--border-color);
   z-index: 100;
-  max-height: 80vh;
+  max-height: calc(100vh - 180px);
   overflow-y: auto;
   font-size: 13px;
   user-select: none;
@@ -127,7 +294,6 @@ html {
   }
 }
 
-/* Tabs */
 .settings-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-color);
@@ -147,13 +313,9 @@ html {
   outline: none;
 }
 
-.tab-btn:hover {
-  color: var(--text-main);
-  background: rgba(255, 255, 255, 0.05);
-}
-
+.tab-btn:hover,
 .tab-btn.active {
-  color: var(--primary-color);
+  color: var(--text-main);
 }
 
 .tab-btn.active::after {
@@ -166,7 +328,6 @@ html {
   background-color: var(--primary-color);
 }
 
-/* Tab Content */
 .tab-content {
   display: none;
   padding: 16px;
@@ -187,7 +348,6 @@ html {
   }
 }
 
-/* Settings Items */
 .settings-item {
   margin-bottom: 16px;
 }
@@ -203,24 +363,20 @@ html {
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
-  color: var(--text-main);
   margin-bottom: 4px;
 }
 
 .settings-label-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   color: var(--text-muted);
   margin-bottom: 4px;
 }
 
 .value-text {
   color: var(--primary-color);
-  font-size: 12px;
   font-weight: bold;
-  min-width: 30px;
-  text-align: right;
+  font-size: 12px;
 }
 
 .settings-separator {
@@ -229,7 +385,12 @@ html {
   margin: 12px 0;
 }
 
-/* Toggle Switch */
+.center {
+  display: flex;
+  justify-content: center;
+}
+
+/* Form Elements */
 .toggle-switch {
   position: relative;
   display: inline-block;
@@ -252,13 +413,10 @@ html {
   bottom: 0;
   background-color: #4a4a4a;
   transition: .4s;
-}
-
-.slider.round {
   border-radius: 34px;
 }
 
-.slider.round:before {
+.slider:before {
   position: absolute;
   content: "";
   height: 14px;
@@ -278,7 +436,6 @@ input:checked+.slider:before {
   transform: translateX(16px);
 }
 
-/* Range Sliders */
 .range-slider {
   -webkit-appearance: none;
   width: 100%;
@@ -291,38 +448,74 @@ input:checked+.slider:before {
 
 .range-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  appearance: none;
   width: 14px;
   height: 14px;
   border-radius: 50%;
   background: var(--text-main);
   cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
+  transition: transform 0.15s;
 }
 
 .range-slider::-webkit-slider-thumb:hover {
-  background: #fff;
   transform: scale(1.2);
 }
 
-/* Select Box */
 .settings-select {
   width: 100%;
-  background-color: var(--slider-bg);
+  background: var(--slider-bg);
   color: var(--text-main);
   border: 1px solid transparent;
   padding: 8px;
   border-radius: 4px;
-  font-size: 13px;
   outline: none;
   cursor: pointer;
 }
 
-.settings-select:focus {
-  border-color: var(--primary-color);
+.text-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
 }
 
-/* EQ Controls */
+.text-btn:hover {
+  border-color: var(--text-main);
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.icon-btn,
+.icon-btn-large {
+  color: var(--text-main);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn-large {
+  background: rgba(0, 0, 0, 0.6);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.icon-btn-large:hover {
+  background: var(--primary-color);
+  transform: scale(1.1);
+}
+
+/* EQ Custom Vertical Slider */
 .eq-container {
   display: flex;
   justify-content: space-between;
@@ -349,77 +542,111 @@ input:checked+.slider:before {
   margin-top: 8px;
 }
 
-/* Vertical Slider (Chrome/Webkit specific) */
-.vertical-slider {
-  writing-mode: bt-lr;
-  /* IE */
-  -webkit-appearance: slider-vertical;
-  width: 24px;
+/* Custom Vertical Range Slider Implementation */
+input[type=range].vertical-slider {
+  writing-mode: vertical-lr;
+  /* Firefox */
+  direction: rtl;
+  /* Firefox top-to-bottom usually needs this? check browser */
+  /* For Chrome/Safari: transform is safer */
+  -webkit-appearance: none;
+  width: 6px;
   height: 90px;
+  background: var(--slider-bg);
+  border-radius: 3px;
   outline: none;
-  background: transparent;
+  margin: 5px;
 }
 
-/* Buttons */
-.text-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-muted);
-  padding: 8px 16px;
-  border-radius: 4px;
+input[type=range].vertical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-main);
   cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-  width: 100%;
+  margin-left: -4px;
+  /* Center thumb on track (6px - 14px)/2 = -4 */
 }
 
-.text-btn:hover {
-  border-color: var(--text-main);
-  color: var(--text-main);
-  background: rgba(255, 255, 255, 0.05);
+/* Firefox specific */
+input[type=range].vertical-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-main);
+  cursor: pointer;
+  border: none;
 }
 
-/* Helper Classes */
-.center {
-  display: flex;
-  justify-content: center;
+input[type=range].vertical-slider::-moz-range-track {
+  width: 6px;
+  background: var(--slider-bg);
 }
 
-/* Loading Spinner */
-.loading-spinner {
+/* Overlays */
+.status-overlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.loading-spinner {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   border-top: 4px solid var(--primary-color);
   animation: spin 1s linear infinite;
-  z-index: 5;
+  margin-bottom: 16px;
 }
 
 @keyframes spin {
   0% {
-    transform: translate(-50%, -50%) rotate(0deg);
+    transform: rotate(0deg);
   }
 
   100% {
-    transform: translate(-50%, -50%) rotate(360deg);
+    transform: rotate(360deg);
   }
 }
 
-/* Scrollbar */
-.settings-menu::-webkit-scrollbar {
-  width: 6px;
+.error-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
 }
 
-.settings-menu::-webkit-scrollbar-track {
-  background: transparent;
+/* Chat */
+#chat-container {
+  position: absolute;
+  top: 0;
+  right: -340px;
+  width: 340px;
+  height: 100%;
+  background: #000;
+  transition: right 0.3s ease;
+  z-index: 30;
+  border-left: 1px solid var(--border-color);
 }
 
-.settings-menu::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 3px;
+.app.chat-visible #chat-container {
+  right: 0;
+}
+
+.app.chat-visible #player-container {
+  width: calc(100% - 340px);
+}
+
+#chat-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
 }

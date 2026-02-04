@@ -11,10 +11,10 @@
 <body>
     <div id="player-container">
         <!-- 비디오 플레이어 -->
-        <video id="video-player" playsinline controls></video>
+        <video id="video-player" playsinline></video>
         
         <!-- 상단 정보 바 -->
-        <div class="top-bar">
+        <div class="top-bar" id="top-bar">
             <div class="channel-info-group">
                 <div class="profile-container">
                     <img id="profile-image" src="" alt="" style="display:none;">
@@ -39,166 +39,202 @@
 
                 <!-- 설정 버튼 -->
                 <button id="settings-btn" class="icon-btn" title="설정">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 </button>
             </div>
-            
-            <!-- 설정 메뉴 -->
-            <div class="menu settings-menu" id="settings-menu">
-                <div class="settings-tabs">
-                    <button class="tab-btn active" data-tab="video">비디오</button>
-                    <button class="tab-btn" data-tab="audio">오디오</button>
+        </div>
+
+        <!-- 하단 컨트롤 바 (player.js 호환용) -->
+        <div class="control-bar" id="control-bar">
+            <div class="control-left">
+                <button id="play-pause-btn" class="control-btn" title="재생">
+                    <svg class="icon-play" viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+                    <svg class="icon-pause" viewBox="0 0 24 24" width="24" height="24" style="display:none;"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                
+                <div class="volume-group">
+                    <button id="mute-btn" class="control-btn" title="음소거">
+                        <svg class="icon-volume" viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                        <svg class="icon-muted" viewBox="0 0 24 24" width="24" height="24" style="display:none;"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                    </button>
+                    <input type="range" id="volume-slider" min="0" max="100" value="100" class="volume-slider">
+                </div>
+            </div>
+
+            <div class="control-right">
+                <div class="quality-wrapper">
+                    <button id="quality-btn" class="control-text-btn">Source</button>
+                    <span id="quality-badge" class="quality-badge" style="display:none;">HD</span>
+                    <div id="quality-menu" class="quality-menu"></div>
+                    <span id="current-quality" style="display:none;"></span>
                 </div>
 
-                <!-- 비디오 탭 -->
-                <div class="tab-content active" id="tab-video">
-                    <div class="settings-item">
-                        <div class="settings-header">
-                            <span>화질 개선</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="enhancement-toggle">
-                                <span class="slider round"></span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="settings-item">
-                        <div style="display:flex;align-items:center;gap:8px;width:100%;">
-                            <label for="filter-mode-select" class="settings-label-row" style="flex:1;">필터 모드</label>
-                            <select id="filter-mode-select" class="settings-select">
-                                <option value="default">기본 (선명하게)</option>
-                                <option value="natural">자연스럽게 (색감+선명)</option>
-                            </select>
-                        </div>
-                    </div>
+                <button id="pip-btn" class="control-btn" title="PIP">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>
+                </button>
+                <button id="fullscreen-btn" class="control-btn" title="전체화면">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                </button>
+                <button id="open-twitch" style="display:none;">Twitch</button>
+                <button id="retry-btn" style="display:none;">Retry</button>
+            </div>
+        </div>
 
-                    <div class="settings-separator"></div>
+        <!-- 채팅 오버레이 UI -->
+        <div class="controls-overlay-chat" style="position:absolute; bottom:20px; right:20px; z-index:20;">
+             <button id="toggle-chat" class="icon-btn-large" title="채팅 토글">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+             </button>
+             <button id="refresh-chat" class="icon-btn-large" title="채팅 새로고침" style="margin-left: 8px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+             </button>
+             <button id="popout-chat" class="icon-btn-large" title="채팅 팝업" style="margin-left: 8px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+             </button>
+        </div>
 
-                    <div class="settings-item column">
-                        <div class="settings-label-row">
-                            <span>선명도</span>
-                            <span id="sharpness-value" class="value-text">1.0x</span>
-                        </div>
-                        <input type="range" id="sharpness-slider" class="range-slider" min="1" max="5" step="0.1" value="1">
-                    </div>
+        <!-- 설정 메뉴 -->
+        <div class="menu settings-menu" id="settings-menu">
+            <div class="settings-tabs">
+                <button class="tab-btn active" data-tab="video">비디오</button>
+                <button class="tab-btn" data-tab="audio">오디오</button>
+            </div>
 
-                    <div class="settings-item column">
-                        <div class="settings-label-row">
-                            <span>채도</span>
-                            <span id="saturation-value" class="value-text">1.0x</span>
-                        </div>
-                        <input type="range" id="saturation-slider" class="range-slider" min="0" max="3" step="0.1" value="1">
+            <!-- 비디오 탭 -->
+            <div class="tab-content active" id="tab-video">
+                <div class="settings-item">
+                    <div class="settings-header">
+                        <span>화질 개선</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="enhancement-toggle">
+                            <span class="slider round"></span>
+                        </label>
                     </div>
-
-                    <div class="settings-item column">
-                        <div class="settings-label-row">
-                            <span>대비</span>
-                            <span id="contrast-value" class="value-text">100%</span>
-                        </div>
-                        <input type="range" id="contrast-slider" class="range-slider" min="50" max="200" step="5" value="100">
-                    </div>
-                    
-                    <div class="settings-item column">
-                        <div class="settings-label-row">
-                            <span>밝기</span>
-                            <span id="brightness-value" class="value-text">100%</span>
-                        </div>
-                        <input type="range" id="brightness-slider" class="range-slider" min="50" max="200" step="5" value="100">
-                    </div>
-                    
-                    <div class="settings-separator"></div>
-                    
-                    <div class="settings-item center">
-                        <button id="reset-settings-btn" class="text-btn">비디오 설정 초기화</button>
+                </div>
+                
+                <div class="settings-item">
+                    <div style="display:flex;align-items:center;gap:8px;width:100%;">
+                        <label for="filter-mode-select" class="settings-label-row" style="flex:1;">필터 모드</label>
+                        <select id="filter-mode-select" class="settings-select">
+                            <option value="default">기본 (선명하게)</option>
+                            <option value="natural">자연스럽게 (색감+선명)</option>
+                        </select>
                     </div>
                 </div>
 
-                <!-- 오디오 탭 -->
-                <div class="tab-content" id="tab-audio">
-                    <div class="settings-item">
-                        <div class="settings-header">
-                            <span>오디오 개선</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="audio-toggle">
-                                <span class="slider round"></span>
-                            </label>
-                        </div>
+                <div class="settings-separator"></div>
+
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>선명도</span>
+                        <span id="sharpness-value" class="value-text">1.0x</span>
                     </div>
+                    <input type="range" id="sharpness-slider" class="range-slider" min="1" max="5" step="0.1" value="1">
+                </div>
 
-                    <div class="settings-separator"></div>
-
-                    <div class="settings-item column">
-                        <div class="settings-label-row">
-                            <span>볼륨 부스트</span>
-                            <span id="audio-boost-value" class="value-text">100%</span>
-                        </div>
-                        <input type="range" id="audio-boost-slider" class="range-slider" min="100" max="300" step="10" value="100">
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>채도</span>
+                        <span id="saturation-value" class="value-text">1.0x</span>
                     </div>
+                    <input type="range" id="saturation-slider" class="range-slider" min="0" max="3" step="0.1" value="1">
+                </div>
 
-                    <div class="settings-item">
-                        <div class="settings-header">
-                            <span>컴프레서 (음량 평준화)</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="compressor-toggle">
-                                <span class="slider round"></span>
-                            </label>
-                        </div>
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>대비</span>
+                        <span id="contrast-value" class="value-text">100%</span>
                     </div>
-
-                    <div class="settings-separator"></div>
-
-                    <div class="settings-item">
-                        <span class="settings-header">이퀄라이저 (5-Band)</span>
+                    <input type="range" id="contrast-slider" class="range-slider" min="50" max="200" step="5" value="100">
+                </div>
+                
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>밝기</span>
+                        <span id="brightness-value" class="value-text">100%</span>
                     </div>
+                    <input type="range" id="brightness-slider" class="range-slider" min="50" max="200" step="5" value="100">
+                </div>
+                
+                <div class="settings-item center">
+                    <button id="reset-settings-btn" class="text-btn">비디오 설정 초기화</button>
+                </div>
+            </div>
 
-                    <div class="eq-container">
-                        <div class="eq-band">
-                            <input type="range" class="vertical-slider eq-slider" data-freq="60" min="-12" max="12" value="0">
-                            <span>60</span>
-                        </div>
-                        <div class="eq-band">
-                            <input type="range" class="vertical-slider eq-slider" data-freq="250" min="-12" max="12" value="0">
-                            <span>250</span>
-                        </div>
-                        <div class="eq-band">
-                            <input type="range" class="vertical-slider eq-slider" data-freq="1000" min="-12" max="12" value="0">
-                            <span>1K</span>
-                        </div>
-                        <div class="eq-band">
-                            <input type="range" class="vertical-slider eq-slider" data-freq="4000" min="-12" max="12" value="0">
-                            <span>4K</span>
-                        </div>
-                        <div class="eq-band">
-                            <input type="range" class="vertical-slider eq-slider" data-freq="12000" min="-12" max="12" value="0">
-                            <span>12K</span>
-                        </div>
+            <!-- 오디오 탭 -->
+            <div class="tab-content" id="tab-audio">
+                <div class="settings-item">
+                    <div class="settings-header">
+                        <span>오디오 개선</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="audio-toggle">
+                            <span class="slider round"></span>
+                        </label>
                     </div>
+                </div>
 
-                    <div class="settings-separator"></div>
+                <div class="settings-separator"></div>
 
-                    <div class="settings-item center">
-                        <button id="reset-audio-btn" class="text-btn">오디오 설정 초기화</button>
+                <div class="settings-item column">
+                    <div class="settings-label-row">
+                        <span>볼륨 부스트</span>
+                        <span id="audio-boost-value" class="value-text">100%</span>
                     </div>
+                    <input type="range" id="audio-boost-slider" class="range-slider" min="100" max="300" step="10" value="100">
+                </div>
+
+                <div class="settings-item">
+                    <div class="settings-header">
+                        <span>컴프레서 (음량 평준화)</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="compressor-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-separator"></div>
+
+                <div class="settings-item">
+                    <span class="settings-header">이퀄라이저 (EQ)</span>
+                </div>
+
+                <div class="eq-container">
+                    <div class="eq-band">
+                        <input type="range" class="vertical-slider eq-slider" data-freq="60" min="-12" max="12" value="0">
+                        <span>60</span>
+                    </div>
+                    <div class="eq-band">
+                        <input type="range" class="vertical-slider eq-slider" data-freq="250" min="-12" max="12" value="0">
+                        <span>250</span>
+                    </div>
+                    <div class="eq-band">
+                        <input type="range" class="vertical-slider eq-slider" data-freq="1000" min="-12" max="12" value="0">
+                        <span>1K</span>
+                    </div>
+                    <div class="eq-band">
+                        <input type="range" class="vertical-slider eq-slider" data-freq="4000" min="-12" max="12" value="0">
+                        <span>4K</span>
+                    </div>
+                    <div class="eq-band">
+                        <input type="range" class="vertical-slider eq-slider" data-freq="12000" min="-12" max="12" value="0">
+                        <span>12K</span>
+                    </div>
+                </div>
+
+                <div class="settings-separator"></div>
+
+                <div class="settings-item center">
+                    <button id="reset-audio-btn" class="text-btn">오디오 설정 초기화</button>
                 </div>
             </div>
         </div>
 
-        <!-- 하단 우측 버튼 -->
-        <div class="controls-overlay" style="top:auto; bottom:20px; right:20px; left:auto;">
-             <button id="toggle-chat" class="icon-btn" title="채팅창 토글" style="background:rgba(0,0,0,0.5);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-             </button>
-             <button id="refresh-chat" class="icon-btn" title="채팅 새로고침" style="background:rgba(0,0,0,0.5);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-             </button>
-        </div>
-
-        <!-- 채팅창 컨테이너 -->
         <div id="chat-container">
-            <!-- iframe은 JS에서 생성 -->
+            <iframe id="chat-iframe"></iframe>
         </div>
 
-        <!-- SVG Filters -->
+        <!-- Hidden SVG Filters (유지) -->
         <svg style="display: none;">
             <defs>
                 <filter id="sharpen">
@@ -218,8 +254,12 @@
             <span id="error-message">오류 발생</span>
             <button onclick="location.reload()" class="text-btn" style="margin-top:10px;">새로고침</button>
         </div>
+        
+        <!-- Sidebar placeholder for player.js compatibility -->
+        <div id="sidebar" class="hidden" style="display:none;"></div>
+        <div class="app" style="height:100%; width:100%;"></div>
     </div>
     
-    <script src="player.js"></script>
+    <script type="module" src="player.js"></script>
 </body>
 </html>
