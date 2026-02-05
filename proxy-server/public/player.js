@@ -103,12 +103,6 @@ function changeQuality(index) {
     if (qualityBtn) {
         qualityBtn.textContent = displayName;
     }
-
-    const badge = elements.qualityBadge();
-    if (badge) {
-        badge.textContent = displayName;
-        badge.style.display = 'inline-block';
-    }
 }
 
 function setupHlsEvents(hlsInstance) {
@@ -443,7 +437,7 @@ function setupSeekbar() {
     });
 }
 
-async function startStream(channel) {
+async function startStream(channel, retryCount = 0) {
     showLoading('방송 연결 중...');
     try {
         const info = await getStreamInfo(channel);
@@ -456,11 +450,22 @@ async function startStream(channel) {
         video.crossOrigin = "anonymous";
 
         if (Hls.isSupported()) {
+            // 기존 HLS 인스턴스 정리
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+
             hls = new Hls({ debug: false, enableWorker: true, lowLatencyMode: true });
             setupHlsEvents(hls);
             // Auto select best quality (usually index 0 from server sort)
             hls.loadSource(qualities[0].url);
             hls.attachMedia(video);
+
+            // 검은 화면 감지 타이머
+            let blackScreenTimer = null;
+            let videoStarted = false;
+
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 hideOverlays();
                 video.muted = true;
@@ -468,6 +473,14 @@ async function startStream(channel) {
                     video.muted = true;
                     video.play();
                 });
+
+                // 3초 후 검은 화면 체크
+                blackScreenTimer = setTimeout(() => {
+                    if (!videoStarted && video.readyState < 3) {
+                        console.warn('[Player] Black screen detected, retrying...');
+                        retryVideoStream(channel, retryCount);
+                    }
+                }, 3000);
 
                 // Activate audio enhancer after video is playing
                 setTimeout(() => {
@@ -488,11 +501,29 @@ async function startStream(channel) {
                 // Initialize PlaybackSpeed
                 PlaybackSpeed.init(video);
             });
+
+            // 비디오 재생 시작 감지
+            video.addEventListener('playing', () => {
+                videoStarted = true;
+                if (blackScreenTimer) {
+                    clearTimeout(blackScreenTimer);
+                    blackScreenTimer = null;
+                }
+            }, { once: true });
+
+            // 비디오 데이터 로드 감지
+            video.addEventListener('loadeddata', () => {
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                    videoStarted = true;
+                    if (blackScreenTimer) {
+                        clearTimeout(blackScreenTimer);
+                        blackScreenTimer = null;
+                    }
+                }
+            }, { once: true });
         }
 
         updateQualityMenu();
-        const badge = elements.qualityBadge();
-        if (badge) badge.style.display = 'inline-block';
 
         loadChatIframe(channel);
 
@@ -500,6 +531,77 @@ async function startStream(channel) {
         console.error(e);
         showError(e.message || '방송 연결 실패');
     }
+}
+
+// 비디오만 재시도 (채팅은 유지)
+function retryVideoStream(channel, retryCount) {
+    if (retryCount >= 3) {
+        showError('비디오 연결 실패. 새로고침을 시도해주세요.');
+        return;
+    }
+
+    console.log(`[Player] Retrying video stream (attempt ${retryCount + 1}/3)...`);
+    showLoading(`재연결 중... (${retryCount + 1}/3)`);
+
+    // HLS 정리
+    if (hls) {
+        hls.destroy();
+        hls = null;
+    }
+
+    // 잠시 후 다시 시도
+    setTimeout(async () => {
+        try {
+            const info = await getStreamInfo(channel);
+            qualities = info.qualities || [];
+
+            if (qualities.length === 0) {
+                throw new Error('스트림을 찾을 수 없습니다.');
+            }
+
+            video = elements.video();
+
+            hls = new Hls({ debug: false, enableWorker: true, lowLatencyMode: true });
+            setupHlsEvents(hls);
+            hls.loadSource(qualities[0].url);
+            hls.attachMedia(video);
+
+            let retryStarted = false;
+
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                hideOverlays();
+                video.muted = true;
+                video.play().catch(() => {
+                    video.muted = true;
+                    video.play();
+                });
+
+                // 3초 후 다시 검은 화면 체크
+                setTimeout(() => {
+                    if (!retryStarted && video.readyState < 3) {
+                        retryVideoStream(channel, retryCount + 1);
+                    }
+                }, 3000);
+            });
+
+            video.addEventListener('playing', () => {
+                retryStarted = true;
+                console.log('[Player] Video stream recovered');
+            }, { once: true });
+
+            video.addEventListener('loadeddata', () => {
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                    retryStarted = true;
+                }
+            }, { once: true });
+
+            updateQualityMenu();
+
+        } catch (e) {
+            console.error('[Player] Retry failed:', e);
+            retryVideoStream(channel, retryCount + 1);
+        }
+    }, 1000);
 }
 
 function init() {

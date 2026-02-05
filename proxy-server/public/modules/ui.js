@@ -20,7 +20,6 @@ export const elements = {
     volumeSlider: () => document.getElementById('volume-slider'),
     qualityBtn: () => document.getElementById('quality-btn'),
     qualityMenu: () => document.getElementById('quality-menu'),
-    qualityBadge: () => document.getElementById('quality-badge'),
     currentQuality: () => document.getElementById('current-quality'),
     pipBtn: () => document.getElementById('pip-btn'),
     fullscreenBtn: () => document.getElementById('fullscreen-btn'),
