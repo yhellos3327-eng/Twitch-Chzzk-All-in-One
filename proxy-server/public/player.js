@@ -640,6 +640,7 @@ function retryVideoStream(channel, retryCount) {
             }
 
             video = elements.video();
+            video.crossOrigin = "anonymous";
 
             hls = new Hls({ debug: false, enableWorker: true, lowLatencyMode: true });
             setupHlsEvents(hls);

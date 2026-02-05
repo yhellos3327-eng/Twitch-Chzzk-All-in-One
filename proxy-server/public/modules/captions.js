@@ -1,29 +1,16 @@
-// AI Captions Module - Silero-VAD 기반 실시간 음성 감지 (직접 실행 버전)
-// 확장 프로그램 없이 웹 페이지 내에서 직접 오디오를 캡처하여 VAD를 실행합니다.
+// AI Captions Module - @ricky0123/vad-web 기반 실시간 음성 감지
+// 라이브러리를 사용하여 브라우저에서 직접 음성을 감지합니다.
 
 export const Captions = {
     isActive: false,
-    isProcessing: false,
     videoElement: null,
     captionContainer: null,
     captionHistory: [],
     maxHistoryLines: 3,
 
     // VAD 관련
+    myvad: null,
     audioContext: null,
-    sourceNode: null,
-    processorNode: null,
-    vadSession: null,
-    isModelLoading: false,
-    isSpeaking: false,
-
-    // VAD 설정
-    SAMPLE_RATE: 16000,
-    VAD_WINDOW_SIZE: 512,
-    speechStartThreshold: 0.5,
-    speechEndThreshold: 0.3,
-    framesSinceLastSpeech: 0,
-    SPEECH_END_FRAMES: 20,
 
     // UI 설정
     fontSize: 'medium',
@@ -34,7 +21,7 @@ export const Captions = {
         this.videoElement = videoEl || document.getElementById('video-player');
         this.createCaptionUI();
         this.loadSettings();
-        console.log('[Captions] Initialized (Direct VAD mode)');
+        console.log('[Captions] Initialized (VAD-Web Library mode)');
         return true;
     },
 
@@ -61,129 +48,83 @@ export const Captions = {
         this.setBgOpacity(this.bgOpacity);
     },
 
-    async initVAD() {
-        if (this.vadSession || this.isModelLoading) return;
-        this.isModelLoading = true;
-        this.updateStatus('모델 로딩 중...');
-
-        try {
-            // ONNX Runtime이 로드되었는지 확인
-            if (typeof ort === 'undefined') {
-                throw new Error('ONNX Runtime (ort) not found');
-            }
-
-            // WASM 경로 설정 (CDN 사용 시 필요할 수 있음)
-            ort.env.wasm.numThreads = 1;
-
-            // 실베로 VAD 모델 로드 (공용 CDN 주소 사용 시도)
-            const modelUrl = 'https://cdn.jsdelivr.net/gh/dgcnz/silero-vad-onnx@master/silero_vad.onnx';
-            this.vadSession = await ort.InferenceSession.create(modelUrl, {
-                executionProviders: ['wasm'],
-                graphOptimizationLevel: 'all'
-            });
-
-            console.log('[Captions] VAD Model loaded');
-            this.isModelLoading = false;
-        } catch (e) {
-            console.error('[Captions] VAD Init failed:', e);
-            this.isModelLoading = false;
-            // 모델 로드 실패 시 로컬 경로로 재시도
-            try {
-                this.vadSession = await ort.InferenceSession.create('lib/silero_vad.onnx');
-            } catch (e2) {
-                this.updateStatus('모델 로드 실패');
-                throw e;
-            }
-        }
-    },
-
     async start() {
         if (this.isActive) return;
-        if (!this.videoElement) return;
+        if (!this.videoElement) {
+            console.error('[Captions] No video element found');
+            return;
+        }
 
         try {
-            await this.initVAD();
+            this.updateStatus('VAD 초기화 중...');
 
-            // AudioContext 생성 (유저 인터랙션 후 호출되어야 함)
-            if (!this.audioContext) {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: this.SAMPLE_RATE
-                });
+            // VAD 라이브러리가 로드되었는지 확인
+            if (typeof vad === 'undefined') {
+                throw new Error('VAD library (vad) not found. Check bundle.min.js loading.');
             }
 
-            if (this.audioContext.state === 'suspended') {
-                await this.audioContext.resume();
-            }
+            // 비디오 엘리먼트로부터 오디오 스트림 추출
+            // 오디오를 캡처하기 위해 비디오 엘리먼트에 captureStream()을 시도하거나,
+            // MediaElementSource를 사용합니다.
 
-            // 비디오 엘리먼트로부터 소스 생성
-            // 주의: crossOrigin="anonymous"가 설정되어 있어야 함
-            if (!this.sourceNode) {
-                this.sourceNode = this.audioContext.createMediaElementSource(this.videoElement);
-                // 소리를 스피커로도 보내기 위해 연결
-                this.sourceNode.connect(this.audioContext.destination);
-            }
+            // @ricky0123/vad-web은 기본적으로 mic를 사용하지만, 사용자 정의 stream을 넘길 수 있습니다.
+            // 하지만 비디오 엘리먼트의 오디오를 바로 넘기려면 MediaStream이 필요합니다.
 
-            this.processorNode = this.audioContext.createScriptProcessor(this.VAD_WINDOW_SIZE, 1, 1);
+            let stream;
+            try {
+                // 비디오 엘리먼트가 cross-origin인 경우 오디오 노드 연결이 필요함
+                this.videoElement.crossOrigin = "anonymous";
 
-            const h = new Float32Array(2 * 1 * 64).fill(0);
-            const c = new Float32Array(2 * 1 * 64).fill(0);
-            const sr = new BigInt64Array([BigInt(this.SAMPLE_RATE)]);
-
-            this.processorNode.onaudioprocess = async (e) => {
-                if (!this.isActive || !this.vadSession) return;
-
-                const inputData = e.inputBuffer.getChannelData(0);
-
-                const inputs = {
-                    input: new ort.Tensor('float32', new Float32Array(inputData), [1, this.VAD_WINDOW_SIZE]),
-                    sr: new ort.Tensor('int64', sr, []),
-                    h: new ort.Tensor('float32', h, [2, 1, 64]),
-                    c: new ort.Tensor('float32', c, [2, 1, 64])
-                };
-
-                try {
-                    const results = await this.vadSession.run(inputs);
-                    const probability = results.output.data[0];
-
-                    h.set(results.hn.data);
-                    c.set(results.cn.data);
-
-                    if (probability > this.speechStartThreshold) {
-                        if (!this.isSpeaking) {
-                            this.isSpeaking = true;
-                            this.showCaption('🎤 목소리 감지됨...', false);
-                        }
-                        this.framesSinceLastSpeech = 0;
-                    } else {
-                        if (this.isSpeaking) {
-                            this.framesSinceLastSpeech++;
-                            if (this.framesSinceLastSpeech > this.SPEECH_END_FRAMES) {
-                                this.isSpeaking = false;
-                                this.finalizeSentence();
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.error('[Captions] VAD Run error:', err);
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
-            };
 
-            this.sourceNode.connect(this.processorNode);
-            this.processorNode.connect(this.audioContext.destination);
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                }
 
+                const source = this.audioContext.createMediaElementSource(this.videoElement);
+                const destination = this.audioContext.createMediaStreamDestination();
+                source.connect(destination);
+                source.connect(this.audioContext.destination); // 스피커로 소리 출력 유지
+
+                stream = destination.stream;
+            } catch (err) {
+                console.warn('[Captions] Failed to create stream from video, falling back to microphone:', err);
+                // 실패 시 마이크로 시도 (fallback)
+                // stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                throw new Error('비디오 오디오를 캡처할 수 없습니다. (CORS 문제일 수 있음)');
+            }
+
+            // VAD 인스턴스 생성
+            this.myvad = await vad.MicVAD.new({
+                stream: stream,
+                onSpeechStart: () => {
+                    this.showCaption('🎤 목소리 감지 중...', false);
+                },
+                onSpeechEnd: (audio) => {
+                    this.finalizeSentence();
+                },
+                onVADMisfire: () => {
+                    this.showCaption('', false);
+                }
+            });
+
+            this.myvad.start();
             this.isActive = true;
             this.captionContainer.classList.add('active');
             this.updateStatus('듣는 중...');
-            console.log('[Captions] Direct VAD Started');
+            console.log('[Captions] VAD Started with video stream');
 
         } catch (e) {
             console.error('[Captions] Start failed:', e);
-            alert('자막 기능을 시작할 수 없습니다. (CORS 문제 또는 브라우저 제한)');
+            this.updateStatus('시작 실패');
+            alert(`자막 기능을 시작할 수 없습니다: ${e.message}`);
         }
     },
 
     finalizeSentence() {
-        const text = "음성이 감지되었습니다. (VAD)";
+        const text = "음성이 감지되었습니다.";
         this.showCaption(text, true);
         this.addToHistory(text);
     },
@@ -192,15 +133,15 @@ export const Captions = {
         if (!this.isActive) return;
         this.isActive = false;
 
-        if (this.processorNode) {
-            this.processorNode.disconnect();
-            this.processorNode = null;
+        if (this.myvad) {
+            this.myvad.pause();
+            this.myvad = null;
         }
 
         this.captionContainer.classList.remove('active');
         this.updateStatus(null);
         this.clearCaption();
-        console.log('[Captions] Direct VAD Stopped');
+        console.log('[Captions] VAD Stopped');
     },
 
     toggle() {
