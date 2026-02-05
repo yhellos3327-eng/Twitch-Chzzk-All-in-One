@@ -1,7 +1,8 @@
-// AI Captions Module - @ricky0123/vad-web 기반 실시간 음성 감지
-// 라이브러리를 사용하여 브라우저에서 직접 음성을 감지합니다.
-
-import { AudioEnhancer } from './audio-enhancer.js';
+// AI Captions Module - 실시간 자막 표시
+// =====================================
+// 두 가지 모드 지원:
+// 1. Extension Mode: Background에서 VAD+STT 처리 후 전달받은 텍스트 표시
+// 2. Standalone Mode: Web Speech API 사용 (마이크 입력)
 
 export const Captions = {
     isActive: false,
@@ -10,19 +11,27 @@ export const Captions = {
     captionHistory: [],
     maxHistoryLines: 3,
 
-    // VAD 관련
-    myvad: null,
+    // Mode
+    mode: 'standalone', // 'extension' | 'standalone'
+
+    // Standalone: Speech Recognition
+    recognition: null,
+    isListening: false,
 
     // UI 설정
     fontSize: 'medium',
     position: 'bottom',
-    bgOpacity: 0.7,
+    bgOpacity: 0.85,
+
+    // 언어 설정
+    language: 'ko-KR',
 
     init(videoEl = null) {
         this.videoElement = videoEl || document.getElementById('video-player');
         this.createCaptionUI();
         this.loadSettings();
-        console.log('[Captions] Initialized (VAD-Web Library mode)');
+        this.setupExtensionListener();
+        console.log('[Captions] Initialized');
         return true;
     },
 
@@ -49,80 +58,235 @@ export const Captions = {
         this.setBgOpacity(this.bgOpacity);
     },
 
-    async start() {
-        if (this.isActive) return;
-        if (!this.videoElement) {
-            console.error('[Captions] No video element found');
-            return;
+    // Extension 메시지 리스너 설정
+    setupExtensionListener() {
+        // Chrome Extension 환경인지 확인
+        if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                this.handleExtensionMessage(message);
+            });
+            console.log('[Captions] Extension listener registered');
+        }
+    },
+
+    // Extension에서 오는 메시지 처리
+    handleExtensionMessage(message) {
+        switch (message.type) {
+            case 'SUBTITLE_TEXT':
+                if (this.isActive) {
+                    this.showCaption(message.text, message.isFinal);
+                    if (message.isFinal) {
+                        this.addToHistory(message.text);
+                    }
+                }
+                break;
+
+            case 'SUBTITLE_STARTED':
+                this.isActive = true;
+                this.mode = 'extension';
+                this.captionContainer?.classList.add('active');
+                this.updateStatus('연결됨 (VAD+STT)');
+                console.log('[Captions] Extension subtitle started');
+                break;
+
+            case 'SUBTITLE_STOPPED':
+                if (this.mode === 'extension') {
+                    this.isActive = false;
+                    this.captionContainer?.classList.remove('active');
+                    this.updateStatus(null);
+                    this.clearCaption();
+                    console.log('[Captions] Extension subtitle stopped');
+                }
+                break;
+
+            case 'SUBTITLE_SPEECH_START':
+                this.updateStatus('음성 감지됨...');
+                break;
+
+            case 'SUBTITLE_SPEECH_END':
+                this.updateStatus('듣는 중...');
+                break;
+
+            case 'SUBTITLE_ERROR':
+                this.updateStatus(`오류: ${message.error}`);
+                this.showNotification(message.error, 'error');
+                break;
+
+            case 'SUBTITLE_AUDIO_LEVEL':
+                // 오디오 레벨 표시 (선택적)
+                break;
+        }
+    },
+
+    // Extension을 통한 자막 시작
+    async startWithExtension() {
+        if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+            this.showNotification('확장 프로그램 환경이 아닙니다.', 'error');
+            return false;
         }
 
         try {
-            this.updateStatus('VAD 초기화 중...');
+            const response = await chrome.runtime.sendMessage({ type: 'START_SUBTITLE' });
 
-            // VAD 라이브러리가 로드되었는지 확인
-            if (typeof vad === 'undefined') {
-                throw new Error('VAD library (vad) not found. Check bundle.min.js loading.');
+            if (response?.success) {
+                this.mode = 'extension';
+                this.isActive = true;
+                this.captionContainer?.classList.add('active');
+                this.updateStatus('초기화 중...');
+                return true;
+            } else {
+                this.showNotification(response?.error || '자막 시작 실패', 'error');
+                return false;
             }
+        } catch (e) {
+            console.error('[Captions] Extension start failed:', e);
+            this.showNotification('확장 프로그램 연결 실패', 'error');
+            return false;
+        }
+    },
 
-            // ONNX Runtime 환경 설정은 player.html에서 이미 설정됨 (v1.19.2)
-            // 여기서는 추가 설정이 필요 없음
-
-            // AudioEnhancer를 통해 오디오 스트림 가져오기 (CORS 및 중복 연결 문제 해결)
-            const stream = AudioEnhancer.getStream();
-
-            if (!stream) {
-                throw new Error('오디오 스트림을 가져올 수 없습니다. 비디오가 로드되었는지 확인해주세요.');
+    // Extension을 통한 자막 중지
+    async stopWithExtension() {
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+            try {
+                await chrome.runtime.sendMessage({ type: 'STOP_SUBTITLE' });
+            } catch (e) {
+                console.warn('[Captions] Extension stop failed:', e);
             }
+        }
 
-            // VAD 인스턴스 생성 - CDN에서 모든 리소스 로드 (v0.0.19 호환)
-            const vadOptions = {
-                stream: stream,
-                onSpeechStart: () => {
-                    this.showCaption('🎤 목소리 감지 중...', false);
-                },
-                onSpeechEnd: (audio) => {
-                    this.finalizeSentence();
-                },
-                onVADMisfire: () => {
-                    this.showCaption('', false);
+        this.isActive = false;
+        this.captionContainer?.classList.remove('active');
+        this.updateStatus(null);
+        this.clearCaption();
+    },
+
+    // Standalone 모드: Web Speech API
+    checkSpeechRecognitionSupport() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            return { supported: false, reason: '이 브라우저는 음성 인식을 지원하지 않습니다.' };
+        }
+        return { supported: true };
+    },
+
+    async startStandalone() {
+        const support = this.checkSpeechRecognitionSupport();
+        if (!support.supported) {
+            this.showNotification(support.reason, 'error');
+            return false;
+        }
+
+        try {
+            this.updateStatus('초기화 중...');
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognition = new SpeechRecognition();
+
+            this.recognition.continuous = true;
+            this.recognition.interimResults = true;
+            this.recognition.lang = this.language;
+            this.recognition.maxAlternatives = 1;
+
+            this.recognition.onstart = () => {
+                this.isListening = true;
+                this.updateStatus('듣는 중... (마이크)');
+            };
+
+            this.recognition.onresult = (event) => {
+                this.handleSpeechResult(event);
+            };
+
+            this.recognition.onerror = (event) => {
+                console.error('[Captions] Speech error:', event.error);
+                if (event.error === 'no-speech') {
+                    this.updateStatus('음성 대기 중...');
+                } else if (event.error === 'not-allowed') {
+                    this.updateStatus('권한 거부됨');
+                    this.showNotification('마이크 권한이 필요합니다.', 'error');
+                    this.stop();
                 }
             };
 
-            console.log('[Captions] Creating VAD with options');
-            this.myvad = await vad.MicVAD.new(vadOptions);
+            this.recognition.onend = () => {
+                if (this.isActive && this.isListening && this.mode === 'standalone') {
+                    setTimeout(() => {
+                        if (this.isActive) {
+                            try { this.recognition.start(); } catch (e) { }
+                        }
+                    }, 100);
+                }
+            };
 
-            this.myvad.start();
+            this.recognition.start();
+            this.mode = 'standalone';
             this.isActive = true;
-            this.captionContainer.classList.add('active');
-            this.updateStatus('듣는 중...');
-            console.log('[Captions] VAD Started with shared stream from AudioEnhancer');
+            this.captionContainer?.classList.add('active');
+            return true;
 
         } catch (e) {
-            console.error('[Captions] Start failed:', e);
-            this.updateStatus('시작 실패');
-            alert(`자막 기능을 시작할 수 없습니다: ${e.message}`);
+            console.error('[Captions] Standalone start failed:', e);
+            this.showNotification(`시작 실패: ${e.message}`, 'error');
+            return false;
         }
     },
 
-    finalizeSentence() {
-        const text = "음성이 감지되었습니다.";
-        this.showCaption(text, true);
-        this.addToHistory(text);
+    handleSpeechResult(event) {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+            } else {
+                interimTranscript += transcript;
+            }
+        }
+
+        if (interimTranscript) {
+            this.showCaption(interimTranscript, false);
+        }
+
+        if (finalTranscript) {
+            this.showCaption(finalTranscript, true);
+            this.addToHistory(finalTranscript);
+        }
     },
 
+    // 자막 시작 (자동 모드 선택)
+    async start() {
+        if (this.isActive) return;
+
+        // Extension 모드 우선 시도
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+            const success = await this.startWithExtension();
+            if (success) return;
+        }
+
+        // Fallback: Standalone 모드
+        await this.startStandalone();
+    },
+
+    // 자막 중지
     stop() {
         if (!this.isActive) return;
-        this.isActive = false;
 
-        if (this.myvad) {
-            this.myvad.pause();
-            this.myvad = null;
+        if (this.mode === 'extension') {
+            this.stopWithExtension();
+        } else {
+            this.isListening = false;
+            if (this.recognition) {
+                try { this.recognition.stop(); } catch (e) { }
+                this.recognition = null;
+            }
         }
 
-        this.captionContainer.classList.remove('active');
+        this.isActive = false;
+        this.captionContainer?.classList.remove('active');
         this.updateStatus(null);
         this.clearCaption();
-        console.log('[Captions] VAD Stopped');
+        console.log('[Captions] Stopped');
     },
 
     toggle() {
@@ -133,6 +297,18 @@ export const Captions = {
         }
     },
 
+    // 언어 변경
+    setLanguage(lang) {
+        this.language = lang;
+        this.saveSettings();
+
+        if (this.isActive && this.mode === 'standalone') {
+            this.stop();
+            setTimeout(() => this.start(), 300);
+        }
+    },
+
+    // UI Methods
     updateStatus(text) {
         const listening = this.captionContainer?.querySelector('.caption-listening');
         if (listening) {
@@ -161,6 +337,8 @@ export const Captions = {
     },
 
     addToHistory(text) {
+        if (!text.trim()) return;
+
         this.captionHistory.push(text);
         if (this.captionHistory.length > this.maxHistoryLines) {
             this.captionHistory.shift();
@@ -178,7 +356,7 @@ export const Captions = {
             if (current && current.textContent === text) {
                 current.textContent = '';
             }
-        }, 3000);
+        }, 5000);
     },
 
     updatePosition() {
@@ -197,8 +375,9 @@ export const Captions = {
 
     setBgOpacity(opacity) {
         this.bgOpacity = opacity;
-        if (this.captionContainer) {
-            this.captionContainer.style.setProperty('--caption-bg-opacity', opacity);
+        const wrapper = this.captionContainer?.querySelector('.caption-text-wrapper');
+        if (wrapper) {
+            wrapper.style.setProperty('--caption-bg-opacity', opacity);
         }
     },
 
@@ -209,7 +388,8 @@ export const Captions = {
                 const settings = JSON.parse(saved);
                 this.fontSize = settings.fontSize || 'medium';
                 this.position = settings.position || 'bottom';
-                this.bgOpacity = settings.bgOpacity || 0.7;
+                this.bgOpacity = settings.bgOpacity || 0.85;
+                this.language = settings.language || 'ko-KR';
             }
         } catch (e) { }
     },
@@ -218,8 +398,40 @@ export const Captions = {
         const settings = {
             fontSize: this.fontSize,
             position: this.position,
-            bgOpacity: this.bgOpacity
+            bgOpacity: this.bgOpacity,
+            language: this.language
         };
         localStorage.setItem('captionSettings', JSON.stringify(settings));
+    },
+
+    showNotification(message, type = 'info') {
+        const existing = document.querySelector('.caption-notification');
+        if (existing) existing.remove();
+
+        const notification = document.createElement('div');
+        notification.className = `caption-notification`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: ${type === 'error' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(30, 30, 40, 0.95)'};
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 10000;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        `;
+
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transition = 'opacity 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 };

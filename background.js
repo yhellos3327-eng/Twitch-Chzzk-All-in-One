@@ -1,11 +1,13 @@
 // Stream Quality Bypass - Background Service Worker
+// ==================================================
+// Tab Capture 관리, Offscreen Document 제어, 자막 라우팅
 
 const DEFAULT_SETTINGS = {
   twitch: {
     enabled: true,
     proxyUrl: '',
     preferredQuality: '1080p',
-    cdnNode: 'auto' // auto, akamai_korea, limelight_kt, limelight_sk, limelight_lg
+    cdnNode: 'auto'
   },
   chzzk: {
     enabled: true,
@@ -15,7 +17,8 @@ const DEFAULT_SETTINGS = {
   subtitle: {
     enabled: false,
     sttEngine: 'deepgram',
-    apiKey: ''
+    apiKey: '',
+    language: 'ko'
   }
 };
 
@@ -27,7 +30,15 @@ const CDN_TYPES = {
   others: 'akamai_korea'
 };
 
-// 현재 CDN 감지 (ISP 기반)
+// Subtitle State
+let subtitleState = {
+  isActive: false,
+  targetTabId: null
+};
+
+// ============================================
+// CDN Detection
+// ============================================
 async function detectCDN() {
   try {
     const response = await fetch('https://ipinfo.io/json');
@@ -48,13 +59,17 @@ async function detectCDN() {
   }
 }
 
-// 설정 가져오기
+// ============================================
+// Settings Management
+// ============================================
 async function getSettings() {
   const { settings } = await chrome.storage.local.get('settings');
   return settings || DEFAULT_SETTINGS;
 }
 
-// Twitch 우회 규칙 활성화
+// ============================================
+// Twitch Bypass Rules
+// ============================================
 async function enableTwitchBypass() {
   const settings = await getSettings();
   let cdnNode = settings.twitch?.cdnNode || 'auto';
@@ -65,25 +80,18 @@ async function enableTwitchBypass() {
 
   console.log('[StreamBypass] Enabling Twitch bypass with CDN:', cdnNode);
 
-  // 기존 규칙 제거
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: [1001, 1002]
   });
 
-  // 새 규칙 추가
   const rules = [
-    // 규칙 1: X-Forwarded-For 헤더 추가
     {
       id: 1001,
       priority: 1,
       action: {
         type: 'modifyHeaders',
         requestHeaders: [
-          {
-            header: 'X-Forwarded-For',
-            operation: 'set',
-            value: '::1'
-          }
+          { header: 'X-Forwarded-For', operation: 'set', value: '::1' }
         ]
       },
       condition: {
@@ -91,7 +99,6 @@ async function enableTwitchBypass() {
         resourceTypes: ['xmlhttprequest']
       }
     },
-    // 규칙 2: CDN 노드 강제 지정 (리다이렉트)
     {
       id: 1002,
       priority: 2,
@@ -116,16 +123,13 @@ async function enableTwitchBypass() {
   ];
 
   try {
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      addRules: rules
-    });
+    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: rules });
     console.log('[StreamBypass] Twitch bypass rules enabled');
   } catch (e) {
     console.error('[StreamBypass] Failed to enable rules:', e);
   }
 }
 
-// Twitch 우회 규칙 비활성화
 async function disableTwitchBypass() {
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: [1001, 1002]
@@ -133,40 +137,149 @@ async function disableTwitchBypass() {
   console.log('[StreamBypass] Twitch bypass rules disabled');
 }
 
-// 설정 초기화
-chrome.runtime.onInstalled.addListener(async () => {
-  const stored = await chrome.storage.local.get('settings');
-  if (!stored.settings) {
-    await chrome.storage.local.set({ settings: DEFAULT_SETTINGS });
-  }
-  console.log('[StreamBypass] Extension installed');
+// ============================================
+// Offscreen Document Management
+// ============================================
+async function setupOffscreenDocument() {
+  const offscreenUrl = chrome.runtime.getURL('offscreen.html');
 
-  // 초기 규칙 설정
-  const settings = stored.settings || DEFAULT_SETTINGS;
-  if (settings.twitch?.enabled) {
-    await enableTwitchBypass();
-  }
-});
+  try {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      documentUrls: [offscreenUrl]
+    });
 
-// 메시지 핸들러 (content script와 통신)
+    if (existingContexts.length > 0) {
+      console.log('[Offscreen] Document already exists');
+      return true;
+    }
+
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
+      justification: 'Capture tab audio for real-time speech-to-text with VAD processing'
+    });
+
+    console.log('[Offscreen] Document created');
+    return true;
+
+  } catch (e) {
+    console.error('[Offscreen] Failed to create document:', e);
+    return false;
+  }
+}
+
+async function closeOffscreenDocument() {
+  try {
+    await chrome.offscreen.closeDocument();
+    console.log('[Offscreen] Document closed');
+  } catch (e) {
+    // Document might not exist
+  }
+}
+
+// ============================================
+// Subtitle Control
+// ============================================
+async function startSubtitle(tabId) {
+  if (subtitleState.isActive) {
+    console.log('[Subtitle] Already active');
+    return { success: false, error: 'Already active' };
+  }
+
+  const settings = await getSettings();
+  const apiKey = settings.subtitle?.apiKey;
+  const language = settings.subtitle?.language || 'ko';
+
+  if (!apiKey) {
+    return { success: false, error: 'API 키가 설정되지 않았습니다. 설정에서 Deepgram API 키를 입력해주세요.' };
+  }
+
+  try {
+    // Offscreen Document 생성
+    const offscreenReady = await setupOffscreenDocument();
+    if (!offscreenReady) {
+      return { success: false, error: 'Offscreen document 생성 실패' };
+    }
+
+    // Tab Capture Stream ID 획득
+    const streamId = await chrome.tabCapture.getMediaStreamId({
+      targetTabId: tabId
+    });
+
+    if (!streamId) {
+      return { success: false, error: 'Tab capture 실패' };
+    }
+
+    // Offscreen으로 캡처 시작 명령
+    await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'start-capture',
+      streamId: streamId,
+      apiKey: apiKey,
+      language: language
+    });
+
+    subtitleState.isActive = true;
+    subtitleState.targetTabId = tabId;
+
+    console.log('[Subtitle] Started for tab:', tabId);
+    return { success: true };
+
+  } catch (e) {
+    console.error('[Subtitle] Start failed:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+async function stopSubtitle() {
+  if (!subtitleState.isActive) {
+    return { success: true };
+  }
+
+  try {
+    // Offscreen에 중지 명령
+    await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'stop-capture'
+    });
+
+    subtitleState.isActive = false;
+    subtitleState.targetTabId = null;
+
+    // Offscreen Document 닫기 (선택적)
+    // await closeOffscreenDocument();
+
+    console.log('[Subtitle] Stopped');
+    return { success: true };
+
+  } catch (e) {
+    console.error('[Subtitle] Stop failed:', e);
+    subtitleState.isActive = false;
+    return { success: false, error: e.message };
+  }
+}
+
+// ============================================
+// Message Handler
+// ============================================
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Settings
   if (message.type === 'GET_SETTINGS') {
     getSettings().then(settings => sendResponse(settings));
-    return true; // 비동기 응답
+    return true;
   }
 
   if (message.type === 'UPDATE_SETTINGS') {
     chrome.storage.local.set({ settings: message.settings }).then(async () => {
-      // Twitch 설정에 따라 규칙 업데이트
       if (message.settings.twitch?.enabled) {
         await enableTwitchBypass();
       } else {
         await disableTwitchBypass();
       }
-
       sendResponse({ success: true });
 
-      // 모든 탭에 설정 변경 알림
+      // Broadcast to all tabs
       chrome.tabs.query({}, (tabs) => {
         tabs.forEach(tab => {
           chrome.tabs.sendMessage(tab.id, {
@@ -179,6 +292,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Twitch Bypass
   if (message.type === 'ENABLE_TWITCH_BYPASS') {
     enableTwitchBypass().then(() => sendResponse({ success: true }));
     return true;
@@ -189,22 +303,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Subtitle Control
+  if (message.type === 'START_SUBTITLE') {
+    const tabId = message.tabId || sender.tab?.id;
+    if (!tabId) {
+      sendResponse({ success: false, error: 'No tab ID' });
+      return true;
+    }
+    startSubtitle(tabId).then(result => sendResponse(result));
+    return true;
+  }
+
+  if (message.type === 'STOP_SUBTITLE') {
+    stopSubtitle().then(result => sendResponse(result));
+    return true;
+  }
+
+  if (message.type === 'GET_SUBTITLE_STATUS') {
+    sendResponse({
+      isActive: subtitleState.isActive,
+      targetTabId: subtitleState.targetTabId
+    });
+    return true;
+  }
+
+  // Subtitle Events (from Offscreen)
+  if (message.type === 'subtitle-event') {
+    handleSubtitleEvent(message);
+  }
+
+  // Legacy support
+  if (message.type === 'subtitle-result') {
+    forwardToContentScript({
+      type: 'subtitle-result',
+      text: message.text,
+      isFinal: message.isFinal ?? true
+    });
+  }
+
+  // Logging
   if (message.type === 'LOG') {
     console.log(`[StreamBypass:${message.source}]`, message.data);
   }
-});
 
-// 통계 추적
-let stats = {
-  twitch: { bypassed: 0, lastBypass: null },
-  chzzk: { bypassed: 0, lastBypass: null }
-};
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Stats
   if (message.type === 'BYPASS_SUCCESS') {
     stats[message.platform].bypassed++;
     stats[message.platform].lastBypass = Date.now();
-    console.log(`[StreamBypass] ${message.platform} bypass count:`, stats[message.platform].bypassed);
   }
 
   if (message.type === 'GET_STATS') {
@@ -213,64 +358,87 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Subtitle & Audio Capture Logic
-async function setupOffscreenDocument(path) {
-  const offscreenUrl = chrome.runtime.getURL(path);
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [offscreenUrl]
-  });
+// ============================================
+// Subtitle Event Handler
+// ============================================
+function handleSubtitleEvent(message) {
+  const event = message.event;
 
-  if (existingContexts.length > 0) return;
+  switch (event) {
+    case 'subtitle-result':
+      forwardToContentScript({
+        type: 'SUBTITLE_TEXT',
+        text: message.text,
+        isFinal: message.isFinal,
+        confidence: message.confidence
+      });
+      break;
 
-  await chrome.offscreen.createDocument({
-    url: path,
-    reasons: ['USER_MEDIA'],
-    justification: 'Capture tab audio for real-time speech-to-text translation.'
-  });
+    case 'vad-speech-start':
+      forwardToContentScript({ type: 'SUBTITLE_SPEECH_START' });
+      break;
+
+    case 'vad-speech-end':
+      forwardToContentScript({ type: 'SUBTITLE_SPEECH_END' });
+      break;
+
+    case 'capture-started':
+      forwardToContentScript({ type: 'SUBTITLE_STARTED' });
+      break;
+
+    case 'capture-stopped':
+      forwardToContentScript({ type: 'SUBTITLE_STOPPED' });
+      subtitleState.isActive = false;
+      break;
+
+    case 'capture-error':
+    case 'stt-error':
+      forwardToContentScript({
+        type: 'SUBTITLE_ERROR',
+        error: message.error
+      });
+      break;
+
+    case 'audio-level':
+      forwardToContentScript({
+        type: 'SUBTITLE_AUDIO_LEVEL',
+        level: message.level
+      });
+      break;
+  }
 }
 
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.type === 'START_SUBTITLE') {
-    try {
-      await setupOffscreenDocument('offscreen.html');
-
-      const tab = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab[0]) return;
-
-      const streamId = await chrome.tabCapture.getMediaStreamId({
-        targetTabId: tab[0].id
-      });
-
-      chrome.runtime.sendMessage({
-        target: 'offscreen',
-        type: 'start-capture',
-        streamId: streamId
-      });
-
-      sendResponse({ success: true });
-    } catch (e) {
-      console.error('Failed to start subtitle:', e);
-      sendResponse({ success: false, error: e.message });
-    }
+function forwardToContentScript(data) {
+  if (subtitleState.targetTabId) {
+    chrome.tabs.sendMessage(subtitleState.targetTabId, data).catch(() => { });
   }
+}
 
-  if (message.type === 'STOP_SUBTITLE') {
-    chrome.runtime.sendMessage({
-      target: 'offscreen',
-      type: 'stop-capture'
-    });
-    sendResponse({ success: true });
+// ============================================
+// Stats
+// ============================================
+let stats = {
+  twitch: { bypassed: 0, lastBypass: null },
+  chzzk: { bypassed: 0, lastBypass: null }
+};
+
+// ============================================
+// Installation & Startup
+// ============================================
+chrome.runtime.onInstalled.addListener(async () => {
+  const stored = await chrome.storage.local.get('settings');
+  if (!stored.settings) {
+    await chrome.storage.local.set({ settings: DEFAULT_SETTINGS });
   }
+  console.log('[StreamBypass] Extension installed');
 
-  if (message.type === 'audio-chunk') {
-    // Here we would receive audio chunks from offscreen and potentially proxy them
-    // or the offscreen document can send them directly if it has network access.
-    // For now, we'll just log or pass through if needed.
+  const settings = stored.settings || DEFAULT_SETTINGS;
+  if (settings.twitch?.enabled) {
+    await enableTwitchBypass();
   }
 });
 
-// 시작 시 규칙 활성화
+// Startup
 (async () => {
   const settings = await getSettings();
   if (settings.twitch?.enabled) {
@@ -278,3 +446,10 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   }
   console.log('[StreamBypass] Background service worker started');
 })();
+
+// Tab removal cleanup
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (subtitleState.targetTabId === tabId) {
+    stopSubtitle();
+  }
+});

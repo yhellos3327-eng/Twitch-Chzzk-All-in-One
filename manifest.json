@@ -1,18 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Stream Quality Bypass",
-  "version": "1.0.0",
-  "description": "Twitch 및 치지직 화질 제한 우회",
+  "version": "1.1.0",
+  "description": "Twitch 및 치지직 화질 제한 우회 + 실시간 자막",
   "permissions": [
     "storage",
     "declarativeNetRequest",
-    "declarativeNetRequestFeedback"
+    "declarativeNetRequestFeedback",
+    "tabCapture",
+    "offscreen",
+    "tabs"
   ],
   "host_permissions": [
     "*://*.twitch.tv/*",
     "*://*.ttvnw.net/*",
     "*://*.chzzk.naver.com/*",
-    "*://*.naver.com/*"
+    "*://*.naver.com/*",
+    "*://api.deepgram.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -57,10 +61,14 @@
         "player.html",
         "player.js",
         "player.css",
-        "hls.min.js"
+        "hls.min.js",
+        "offscreen.html",
+        "offscreen.js",
+        "audio-worklet-processor.js"
       ],
       "matches": [
-        "*://*.twitch.tv/*"
+        "*://*.twitch.tv/*",
+        "*://*.chzzk.naver.com/*"
       ]
     }
   ]
