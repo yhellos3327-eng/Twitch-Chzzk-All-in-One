@@ -231,6 +231,11 @@ async function startStream(channel) {
                     video.muted = true;
                     video.play();
                 });
+
+                // Activate audio enhancer after video is playing
+                setTimeout(() => {
+                    AudioEnhancer.activate();
+                }, 500);
             });
         }
 
