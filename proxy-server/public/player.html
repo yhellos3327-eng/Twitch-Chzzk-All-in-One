@@ -37,13 +37,8 @@
                     <span id="viewer-count">0</span>명 시청 중
                 </div>
 
-                <!-- 채팅 팝업 버튼 -->
-                <button id="popout-chat" class="control-btn" title="채팅 팝업">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                </button>
-
                 <!-- 설정 버튼 -->
-                <button id="settings-btn" class="control-btn" title="설정">
+                <button id="settings-btn" class="icon-btn" title="설정">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 </button>
             </div>
@@ -145,6 +140,19 @@
                 <button id="open-twitch" style="display:none;">Twitch</button>
                 <button id="retry-btn" style="display:none;">Retry</button>
             </div>
+        </div>
+
+        <!-- 채팅 오버레이 UI -->
+        <div class="controls-overlay-chat" style="position:absolute; bottom:20px; right:20px; z-index:20;">
+             <button id="toggle-chat" class="icon-btn-large" title="채팅 토글">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+             </button>
+             <button id="refresh-chat" class="icon-btn-large" title="채팅 새로고침" style="margin-left: 8px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+             </button>
+             <button id="popout-chat" class="icon-btn-large" title="채팅 팝업" style="margin-left: 8px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+             </button>
         </div>
 
         <!-- 설정 메뉴 -->
@@ -312,12 +320,9 @@
             <button onclick="location.reload()" class="text-btn" style="margin-top:10px;">새로고침</button>
         </div>
         
-        <!-- 사이드바 (채팅창) -->
-        <div id="sidebar">
-            <div id="chat-container">
-                <!-- iframe은 modules/chat.js에 의해 동적으로 생성/관리됨 -->
-            </div>
-        </div>
+        <!-- Sidebar placeholder for player.js compatibility -->
+        <div id="sidebar" class="hidden" style="display:none;"></div>
+        <div class="app" style="height:100%; width:100%;"></div>
     </div>
     
     <script type="module" src="player.js"></script>

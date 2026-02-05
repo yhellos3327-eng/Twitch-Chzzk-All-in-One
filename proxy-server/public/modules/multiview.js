@@ -597,15 +597,7 @@ export const MultiView = {
             const data = await response.json();
 
             if (data.qualities?.length && Hls.isSupported()) {
-                this.miniHls = new Hls({
-                    debug: false,
-                    enableWorker: true,
-                    // 코덱 관련 설정
-                    maxBufferLength: 30,
-                    maxMaxBufferLength: 60,
-                    startLevel: -1, // 자동 품질 선택
-                    capLevelToPlayerSize: true
-                });
+                this.miniHls = new Hls({ debug: false, enableWorker: true });
                 this.miniHls.loadSource(data.qualities[0].url);
                 this.miniHls.attachMedia(miniVideo);
 
@@ -614,36 +606,14 @@ export const MultiView = {
                     miniVideo.play().catch(() => { });
                 });
 
-                this.miniHls.on(Hls.Events.ERROR, (event, errorData) => {
-                    if (errorData.fatal) {
-                        console.error('[MiniPlayer] HLS Error:', errorData);
-
-                        // 에러 복구 시도
-                        switch (errorData.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                console.log('[MiniPlayer] Network error, trying to recover...');
-                                this.miniHls.startLoad();
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                console.log('[MiniPlayer] Media error, trying to recover...');
-                                this.miniHls.recoverMediaError();
-                                break;
-                            default:
-                                loadingEl.textContent = '재생 오류';
-                                loadingEl.style.display = 'flex';
-                                break;
-                        }
+                this.miniHls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        console.error('[MiniPlayer] HLS Error:', data);
+                        loadingEl.textContent = '오류';
                     }
                 });
-            } else if (miniVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                // Safari 네이티브 HLS 지원
-                miniVideo.src = data.qualities[0].url;
-                miniVideo.addEventListener('loadedmetadata', () => {
-                    loadingEl.style.display = 'none';
-                    miniVideo.play().catch(() => { });
-                });
             } else {
-                loadingEl.textContent = 'HLS 미지원';
+                loadingEl.textContent = '스트림 로드 실패';
             }
         } catch (e) {
             console.error('[MiniPlayer] Failed to load stream:', e);
