@@ -33,6 +33,10 @@ export const Captions = {
     // 상태
     isConnecting: false,
 
+    // 음소거 상태 (자막 시작 전 볼륨)
+    previousVolume: 1.0,
+    isMutedByCaption: false,
+
     init(videoEl = null) {
         this.videoElement = videoEl || document.getElementById('video-player');
         this.createCaptionUI();
@@ -92,8 +96,12 @@ export const Captions = {
 
             this.isActive = true;
             this.isConnecting = false;
-            this.updateStatus('듣는 중... (자동 감지 → 한글)');
-            console.log('[Captions] Started - Auto-detect + Korean translation');
+            const statusMsg = this.translateToKorean ? '듣는 중... (자동 감지)' : '듣는 중...';
+            this.updateStatus(statusMsg);
+            console.log('[Captions] Started - language detection:', this.translateToKorean);
+
+            // 3. 비디오 음소거 (오디오 중첩 방지)
+            this.muteVideo();
 
         } catch (e) {
             console.error('[Captions] Start failed:', e);
@@ -105,51 +113,100 @@ export const Captions = {
         }
     },
 
-    async setupAudioCapture() {
-        const sampleRate = 16000;
+    // 자막 시작 시 비디오 음소거 (오디오 중첩 방지)
+    muteVideo() {
+        if (this.isMutedByCaption) return;
 
-        // 새 AudioContext 생성 (16kHz)
-        const AC = window.AudioContext || window.webkitAudioContext;
-        this.audioContext = new AC({ sampleRate: sampleRate });
+        if (this.useSharedContext) {
+            // 공유 컨텍스트: AudioEnhancer의 gainNode 제어
+            if (AudioEnhancer.gainNode) {
+                this.previousVolume = AudioEnhancer.gainNode.gain.value;
+                AudioEnhancer.gainNode.gain.value = 0;
+                this.isMutedByCaption = true;
+                console.log('[Captions] Muted via AudioEnhancer gainNode');
+            }
+        } else if (this.gainNode) {
+            // 독립 컨텍스트: 자체 gainNode 제어
+            this.previousVolume = this.gainNode.gain.value;
+            this.gainNode.gain.value = 0;
+            this.isMutedByCaption = true;
+            console.log('[Captions] Muted via own gainNode');
+        }
+    },
 
-        // Context가 suspended 상태면 resume
-        if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume();
+    // 자막 종료 시 비디오 음소거 해제
+    unmuteVideo() {
+        if (!this.isMutedByCaption) return;
+
+        if (this.useSharedContext) {
+            // 공유 컨텍스트: AudioEnhancer의 gainNode 복원
+            if (AudioEnhancer.gainNode) {
+                AudioEnhancer.gainNode.gain.value = this.previousVolume || 1.0;
+                console.log('[Captions] Unmuted via AudioEnhancer gainNode');
+            }
+        } else if (this.gainNode) {
+            // 독립 컨텍스트: 자체 gainNode 복원
+            this.gainNode.gain.value = this.previousVolume || 1.0;
+            console.log('[Captions] Unmuted via own gainNode');
         }
 
-        // MediaElementSource 생성
-        try {
-            this.sourceNode = this.audioContext.createMediaElementSource(this.videoElement);
-            console.log('[Captions] Created MediaElementSource');
-        } catch (e) {
-            if (e.name === 'InvalidStateError') {
-                // 이미 다른 context에 연결됨 - AudioEnhancer의 스트림 사용
-                console.log('[Captions] Video already connected, trying AudioEnhancer stream...');
+        this.isMutedByCaption = false;
+    },
 
-                // AudioEnhancer 초기화 시도
-                if (!AudioEnhancer.context) {
-                    AudioEnhancer.setupContext();
-                }
+    async setupAudioCapture() {
+        // AudioEnhancer가 이미 AudioContext를 생성했는지 확인
+        // 같은 비디오에 MediaElementSource는 한 번만 생성 가능
+        const hasExistingContext = AudioEnhancer.context && AudioEnhancer.sourceConnected;
 
-                const stream = AudioEnhancer.getStream?.();
-                if (stream) {
-                    this.sourceNode = this.audioContext.createMediaStreamSource(stream);
-                    console.log('[Captions] Using AudioEnhancer stream');
-                } else {
-                    throw new Error('오디오 캡처 실패. 페이지를 새로고침 후 자막을 먼저 활성화해주세요.');
+        if (hasExistingContext) {
+            // AudioEnhancer의 context와 streamDestination 사용
+            console.log('[Captions] Using existing AudioEnhancer context');
+
+            this.audioContext = AudioEnhancer.context;
+            this.useSharedContext = true;
+
+            // AudioEnhancer에서 스트림 가져오기
+            if (!AudioEnhancer.streamDestination) {
+                // StreamDestination 생성
+                AudioEnhancer.streamDestination = this.audioContext.createMediaStreamDestination();
+                // Source를 streamDestination에도 연결
+                AudioEnhancer.source.connect(AudioEnhancer.streamDestination);
+            }
+
+            const stream = AudioEnhancer.streamDestination.stream;
+            this.sourceNode = this.audioContext.createMediaStreamSource(stream);
+
+        } else {
+            // 새 AudioContext 생성
+            const AC = window.AudioContext || window.webkitAudioContext;
+            this.audioContext = new AC();
+            this.useSharedContext = false;
+
+            // Context가 suspended 상태면 resume
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
+
+            // MediaElementSource 생성
+            try {
+                this.sourceNode = this.audioContext.createMediaElementSource(this.videoElement);
+                console.log('[Captions] Created new MediaElementSource');
+            } catch (e) {
+                if (e.name === 'InvalidStateError') {
+                    throw new Error('비디오가 다른 오디오 처리에 연결되어 있습니다. 페이지를 새로고침해주세요.');
                 }
-            } else {
                 throw e;
             }
         }
 
-        // GainNode 생성 (오디오 출력용 - 1개만 destination에 연결)
-        this.gainNode = this.audioContext.createGain();
-        this.gainNode.gain.value = 1.0;
-
-        // ScriptProcessor로 오디오 데이터 추출 (16kHz, mono)
+        // ScriptProcessor로 오디오 데이터 추출 (16kHz로 다운샘플링 필요)
         const bufferSize = 4096;
         this.processorNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+        // 샘플레이트 변환 비율
+        const sourceSampleRate = this.audioContext.sampleRate;
+        const targetSampleRate = 16000;
+        const ratio = sourceSampleRate / targetSampleRate;
 
         this.processorNode.onaudioprocess = (e) => {
             if (!this.isActive || !this.sttSocket || this.sttSocket.readyState !== WebSocket.OPEN) {
@@ -158,28 +215,53 @@ export const Captions = {
 
             const inputData = e.inputBuffer.getChannelData(0);
 
+            // 다운샘플링 (예: 48kHz -> 16kHz)
+            let resampledData;
+            if (ratio > 1) {
+                const newLength = Math.floor(inputData.length / ratio);
+                resampledData = new Float32Array(newLength);
+                for (let i = 0; i < newLength; i++) {
+                    resampledData[i] = inputData[Math.floor(i * ratio)];
+                }
+            } else {
+                resampledData = inputData;
+            }
+
             // Float32 -> Int16 PCM 변환
-            const pcmData = this.float32ToInt16(inputData);
+            const pcmData = this.float32ToInt16(resampledData);
 
             // WebSocket으로 전송
             this.sttSocket.send(pcmData.buffer);
         };
 
-        // 오디오 체인 구성 (소리 중첩 방지)
-        // Source -> GainNode -> Destination (오디오 출력)
-        // Source -> Processor (STT 데이터 추출, destination 미연결)
-        this.sourceNode.connect(this.gainNode);
-        this.gainNode.connect(this.audioContext.destination);
+        if (hasExistingContext) {
+            // 공유 컨텍스트 사용 시: Processor만 연결 (AudioEnhancer가 오디오 출력 담당)
+            this.sourceNode.connect(this.processorNode);
+            // Processor는 destination에 연결하지 않음 (onaudioprocess 호출을 위해 dummy 연결)
+            const silentGain = this.audioContext.createGain();
+            silentGain.gain.value = 0;
+            this.processorNode.connect(silentGain);
+            silentGain.connect(this.audioContext.destination);
+            console.log('[Captions] Audio capture via shared context (no duplication)');
 
-        // Processor는 데이터 추출만 하고 destination에 연결하지 않음
-        this.sourceNode.connect(this.processorNode);
-        // processorNode를 빈 GainNode에 연결 (onaudioprocess 호출을 위해 필요)
-        const silentGain = this.audioContext.createGain();
-        silentGain.gain.value = 0; // 무음
-        this.processorNode.connect(silentGain);
-        silentGain.connect(this.audioContext.destination);
+        } else {
+            // 새 컨텍스트 사용 시: GainNode로 오디오 출력
+            this.gainNode = this.audioContext.createGain();
+            this.gainNode.gain.value = 1.0;
 
-        console.log('[Captions] Audio capture setup complete (no audio duplication)');
+            // Source -> GainNode -> Destination
+            this.sourceNode.connect(this.gainNode);
+            this.gainNode.connect(this.audioContext.destination);
+
+            // Source -> Processor (STT용)
+            this.sourceNode.connect(this.processorNode);
+            const silentGain = this.audioContext.createGain();
+            silentGain.gain.value = 0;
+            this.processorNode.connect(silentGain);
+            silentGain.connect(this.audioContext.destination);
+
+            console.log('[Captions] Audio capture via new context');
+        }
     },
 
     async connectSTT() {
@@ -199,17 +281,24 @@ export const Captions = {
             // 다국어 자동 감지 + 한국어 번역
             if (this.translateToKorean) {
                 // detect_language: 다국어 자동 감지
-                // language: 없음 (자동 감지)
                 params.set('detect_language', 'true');
-                params.set('translate', 'ko'); // 한국어로 번역
+                // Deepgram은 translate 파라미터 지원하지 않음 - 언어 자동 감지만 사용
             } else {
-                params.set('language', this.sourceLanguage);
+                params.set('language', this.sourceLanguage === 'multi' ? 'ko' : this.sourceLanguage);
             }
 
             const wsUrl = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
-            console.log('[Captions] Connecting with translation to Korean');
+            console.log('[Captions] Connecting to Deepgram...');
 
-            this.sttSocket = new WebSocket(wsUrl, ['token', this.apiKey]);
+            // Deepgram WebSocket 연결
+            // 방법 1: subprotocol로 token 전달 (권장)
+            try {
+                this.sttSocket = new WebSocket(wsUrl, ['token', this.apiKey]);
+            } catch (e) {
+                // 방법 2: URL 파라미터로 전달 (fallback)
+                console.log('[Captions] Trying URL token method...');
+                this.sttSocket = new WebSocket(`${wsUrl}&token=${encodeURIComponent(this.apiKey)}`);
+            }
 
             this.sttSocket.onopen = () => {
                 console.log('[Captions] Deepgram connected (auto-detect + Korean translation)');
@@ -290,6 +379,10 @@ export const Captions = {
 
         this.isActive = false;
         this.isConnecting = false;
+
+        // 비디오 음소거 해제
+        this.unmuteVideo();
+
         this.cleanup();
 
         this.captionContainer?.classList.remove('active');
@@ -315,23 +408,24 @@ export const Captions = {
             this.processorNode = null;
         }
 
-        // GainNode 연결 해제
-        if (this.gainNode) {
+        // GainNode 연결 해제 (공유 컨텍스트가 아닐 때만)
+        if (this.gainNode && !this.useSharedContext) {
             try { this.gainNode.disconnect(); } catch (e) { }
             this.gainNode = null;
         }
 
-        // Source 연결 해제
+        // Source 연결 해제 (공유 컨텍스트일 때는 스트림 소스만)
         if (this.sourceNode) {
             try { this.sourceNode.disconnect(); } catch (e) { }
             this.sourceNode = null;
         }
 
-        // AudioContext 닫기
-        if (this.audioContext) {
+        // AudioContext 닫기 (공유 컨텍스트가 아닐 때만)
+        if (this.audioContext && !this.useSharedContext) {
             try { this.audioContext.close(); } catch (e) { }
-            this.audioContext = null;
         }
+        this.audioContext = null;
+        this.useSharedContext = false;
     },
 
     toggle() {
@@ -368,7 +462,7 @@ export const Captions = {
         dialog.innerHTML = `
             <div class="caption-api-content">
                 <h3>🎤 실시간 자막 설정</h3>
-                <p>영상 음성을 자동으로 인식하고 한국어로 번역합니다.</p>
+                <p>영상 음성을 실시간으로 인식하여 자막으로 표시합니다.</p>
                 <p class="caption-api-hint">
                     <a href="https://deepgram.com" target="_blank">deepgram.com</a>에서
                     무료 API 키를 발급받으세요. ($200 크레딧 제공)
@@ -378,7 +472,7 @@ export const Captions = {
                 <div class="caption-option">
                     <label>
                         <input type="checkbox" id="caption-translate-toggle" ${this.translateToKorean ? 'checked' : ''} />
-                        <span>다국어 자동 감지 + 한국어 번역</span>
+                        <span>다국어 자동 감지 (영어/일본어/한국어 등)</span>
                     </label>
                 </div>
 
