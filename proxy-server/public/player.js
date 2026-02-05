@@ -8,6 +8,7 @@ import { Captions } from './modules/captions.js';
 import { StreamStats } from './modules/stream-stats.js';
 import { KeyboardShortcuts } from './modules/keyboard-shortcuts.js';
 import { PlaybackSpeed } from './modules/playback-speed.js';
+import { MultiView } from './modules/multiview.js';
 
 let hls = null;
 let currentChannel = null;
@@ -55,9 +56,66 @@ function getQualityDisplayName(quality) {
     return quality.name || 'Auto';
 }
 
+// 화질 목록 정렬 (해상도 높은 순서로)
+function sortQualities(qualityList) {
+    return [...qualityList].sort((a, b) => {
+        // 해상도 추출 함수
+        const getResolutionHeight = (q) => {
+            // resolution 필드에서 추출
+            if (q.resolution) {
+                const height = parseInt(q.resolution.split('x')[1]);
+                if (!isNaN(height)) return height;
+            }
+            // name에서 추출
+            const name = (q.name || '').toLowerCase();
+            const match = name.match(/(\d{3,4})p/);
+            if (match) return parseInt(match[1]);
+            // source/chunked는 최고 화질로 취급
+            if (name.includes('source') || name.includes('chunked')) return 9999;
+            // audio only는 맨 아래
+            if (name.includes('audio')) return 0;
+            return 100; // 기본값
+        };
+
+        // FPS 추출
+        const getFPS = (q) => {
+            if (q.fps) return parseFloat(q.fps);
+            const name = (q.name || '').toLowerCase();
+            if (name.includes('60')) return 60;
+            return 30;
+        };
+
+        const heightA = getResolutionHeight(a);
+        const heightB = getResolutionHeight(b);
+
+        // 해상도로 먼저 정렬 (높은 것 먼저)
+        if (heightA !== heightB) {
+            return heightB - heightA;
+        }
+
+        // 같은 해상도면 FPS로 정렬 (높은 것 먼저)
+        return getFPS(b) - getFPS(a);
+    });
+}
+
 function updateQualityMenu() {
     const menu = elements.qualityMenu();
     if (!menu) return;
+
+    // 화질 목록 정렬
+    const sortedQualities = sortQualities(qualities);
+
+    // 원본 배열 업데이트 (currentQualityIndex도 조정 필요)
+    const currentQualityUrl = qualities[currentQualityIndex]?.url;
+    qualities = sortedQualities;
+
+    // 현재 선택된 화질의 새 인덱스 찾기
+    if (currentQualityUrl) {
+        const newIndex = qualities.findIndex(q => q.url === currentQualityUrl);
+        if (newIndex !== -1) {
+            currentQualityIndex = newIndex;
+        }
+    }
 
     menu.innerHTML = qualities.map((q, i) => {
         const displayName = getQualityDisplayName(q);
@@ -76,6 +134,25 @@ function updateQualityMenu() {
             menu.style.display = 'none';
         });
     });
+}
+
+// 화질 목록 정기 감시 (30초마다)
+let qualityWatchInterval = null;
+function startQualityWatch() {
+    if (qualityWatchInterval) return;
+
+    qualityWatchInterval = setInterval(() => {
+        if (qualities.length > 0) {
+            // 정렬 상태 확인
+            const sorted = sortQualities(qualities);
+            const needsSort = sorted.some((q, i) => q.url !== qualities[i]?.url);
+
+            if (needsSort) {
+                console.log('[Player] Re-sorting quality list');
+                updateQualityMenu();
+            }
+        }
+    }, 30000); // 30초마다 체크
 }
 
 function changeQuality(index) {
@@ -490,6 +567,9 @@ async function startStream(channel, retryCount = 0) {
                 // Initialize MediaTools after video is ready
                 MediaTools.init(video, channel);
 
+                // Initialize MultiView (PIP alternatives & multi-stream)
+                MultiView.init(video, channel);
+
                 // Initialize StreamStats with HLS instance
                 StreamStats.init(hls, video);
 
@@ -524,6 +604,7 @@ async function startStream(channel, retryCount = 0) {
         }
 
         updateQualityMenu();
+        startQualityWatch(); // 화질 목록 정기 감시 시작
 
         loadChatIframe(channel);
 
