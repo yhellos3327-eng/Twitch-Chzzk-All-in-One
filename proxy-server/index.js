@@ -3,6 +3,7 @@ const https = require('https');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
+const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -411,6 +412,74 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: 'Not Found' }));
 });
 
+// WebSocket 서버 설정 (Deepgram 프록시)
+const wss = new WebSocket.Server({ server, path: '/deepgram' });
+
+wss.on('connection', (clientWs, req) => {
+  const parsedUrl = url.parse(req.url, true);
+  const apiKey = parsedUrl.query.apiKey;
+  const params = parsedUrl.query.params || '';
+
+  if (!apiKey) {
+    clientWs.close(4001, 'API key required');
+    return;
+  }
+
+  console.log('[Deepgram Proxy] Client connected');
+
+  // Deepgram WebSocket 연결
+  const deepgramUrl = `wss://api.deepgram.com/v1/listen?${params}`;
+  const deepgramWs = new WebSocket(deepgramUrl, {
+    headers: {
+      'Authorization': `Token ${apiKey}`
+    }
+  });
+
+  deepgramWs.on('open', () => {
+    console.log('[Deepgram Proxy] Connected to Deepgram');
+    clientWs.send(JSON.stringify({ type: 'connected' }));
+  });
+
+  deepgramWs.on('message', (data) => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(data);
+    }
+  });
+
+  deepgramWs.on('error', (error) => {
+    console.error('[Deepgram Proxy] Deepgram error:', error.message);
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify({ type: 'error', error: error.message }));
+    }
+  });
+
+  deepgramWs.on('close', (code, reason) => {
+    console.log('[Deepgram Proxy] Deepgram disconnected:', code, reason.toString());
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.close(code, reason.toString());
+    }
+  });
+
+  // 클라이언트에서 오디오 데이터 수신
+  clientWs.on('message', (data) => {
+    if (deepgramWs.readyState === WebSocket.OPEN) {
+      deepgramWs.send(data);
+    }
+  });
+
+  clientWs.on('close', () => {
+    console.log('[Deepgram Proxy] Client disconnected');
+    if (deepgramWs.readyState === WebSocket.OPEN) {
+      deepgramWs.close();
+    }
+  });
+
+  clientWs.on('error', (error) => {
+    console.error('[Deepgram Proxy] Client error:', error.message);
+  });
+});
+
 server.listen(PORT, () => {
   console.log(`[Twitch Proxy] Server running on port ${PORT}`);
+  console.log(`[Deepgram Proxy] WebSocket proxy available at /deepgram`);
 });

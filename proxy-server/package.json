@@ -9,6 +9,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
   "keywords": ["twitch", "proxy"],
   "license": "MIT"
 }

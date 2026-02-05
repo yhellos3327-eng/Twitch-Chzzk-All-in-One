@@ -278,35 +278,58 @@ export const Captions = {
                 channels: '1'
             });
 
-            // 다국어 자동 감지 + 한국어 번역
+            // 다국어 자동 감지
             if (this.translateToKorean) {
-                // detect_language: 다국어 자동 감지
                 params.set('detect_language', 'true');
-                // Deepgram은 translate 파라미터 지원하지 않음 - 언어 자동 감지만 사용
             } else {
                 params.set('language', this.sourceLanguage === 'multi' ? 'ko' : this.sourceLanguage);
             }
 
-            const wsUrl = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
-            console.log('[Captions] Connecting to Deepgram...');
+            // 프록시 서버를 통해 Deepgram에 연결
+            // (브라우저 WebSocket은 Authorization 헤더를 지원하지 않음)
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const proxyUrl = `${wsProtocol}//${window.location.host}/deepgram?apiKey=${encodeURIComponent(this.apiKey)}&params=${encodeURIComponent(params.toString())}`;
 
-            // Deepgram WebSocket 연결
-            // 방법 1: subprotocol로 token 전달 (권장)
-            try {
-                this.sttSocket = new WebSocket(wsUrl, ['token', this.apiKey]);
-            } catch (e) {
-                // 방법 2: URL 파라미터로 전달 (fallback)
-                console.log('[Captions] Trying URL token method...');
-                this.sttSocket = new WebSocket(`${wsUrl}&token=${encodeURIComponent(this.apiKey)}`);
-            }
+            console.log('[Captions] Connecting via proxy...');
+
+            this.sttSocket = new WebSocket(proxyUrl);
+
+            let isResolved = false;
 
             this.sttSocket.onopen = () => {
-                console.log('[Captions] Deepgram connected (auto-detect + Korean translation)');
-                resolve();
+                console.log('[Captions] WebSocket opened, waiting for Deepgram connection...');
             };
 
             this.sttSocket.onmessage = (event) => {
-                this.handleSTTResult(JSON.parse(event.data));
+                try {
+                    const data = JSON.parse(event.data);
+
+                    // 프록시 서버의 연결 확인 메시지
+                    if (data.type === 'connected') {
+                        console.log('[Captions] Deepgram connected via proxy');
+                        if (!isResolved) {
+                            isResolved = true;
+                            resolve();
+                        }
+                        return;
+                    }
+
+                    // 프록시 서버의 에러 메시지
+                    if (data.type === 'error') {
+                        console.error('[Captions] Deepgram error:', data.error);
+                        if (!isResolved) {
+                            isResolved = true;
+                            reject(new Error(data.error));
+                        }
+                        return;
+                    }
+
+                    // Deepgram STT 결과
+                    this.handleSTTResult(data);
+                } catch (e) {
+                    // JSON 파싱 실패 - 바이너리 데이터일 수 있음
+                    console.warn('[Captions] Non-JSON message received');
+                }
             };
 
             this.sttSocket.onerror = (error) => {
@@ -331,11 +354,14 @@ export const Captions = {
 
             // 타임아웃
             setTimeout(() => {
-                if (this.sttSocket?.readyState === WebSocket.CONNECTING) {
-                    this.sttSocket.close();
+                if (!isResolved) {
+                    isResolved = true;
+                    if (this.sttSocket) {
+                        this.sttSocket.close();
+                    }
                     reject(new Error('연결 타임아웃'));
                 }
-            }, 10000);
+            }, 15000);
         });
     },
 
