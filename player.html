@@ -13,7 +13,9 @@
     <header class="header">
       <div class="header-left">
         <div class="logo">
-          <span class="logo-icon">▶</span>
+          <span class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </span>
           <span class="logo-text">Stream Bypass</span>
         </div>
         <div class="channel-info">
@@ -59,7 +61,9 @@
 
         <!-- 에러 -->
         <div class="player-overlay error" id="error-overlay" style="display:none;">
-          <span class="error-icon">⚠️</span>
+          <span class="error-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+          </span>
           <span class="error-message" id="error-message">Error loading stream</span>
           <button class="btn-retry" id="retry-btn">Retry</button>
         </div>
@@ -84,7 +88,10 @@
               </svg>
             </button>
             <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="100">
-            <span class="live-indicator">● LIVE</span>
+            <span class="live-indicator">
+              <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+              LIVE
+            </span>
           </div>
           <div class="controls-right">
             <div class="quality-selector">
