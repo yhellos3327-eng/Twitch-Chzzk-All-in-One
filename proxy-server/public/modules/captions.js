@@ -64,6 +64,11 @@ export const Captions = {
                 throw new Error('VAD library (vad) not found. Check bundle.min.js loading.');
             }
 
+            // ONNX Runtime 환경 설정 (CDN에서 WASM 파일을 찾을 수 있도록 설정)
+            if (typeof ort !== 'undefined') {
+                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+            }
+
             // AudioEnhancer를 통해 오디오 스트림 가져오기 (CORS 및 중복 연결 문제 해결)
             const stream = AudioEnhancer.getStream();
 
@@ -74,6 +79,7 @@ export const Captions = {
             // VAD 인스턴스 생성
             this.myvad = await vad.MicVAD.new({
                 stream: stream,
+                modelURL: 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.29/dist/silero_vad.onnx',
                 onSpeechStart: () => {
                     this.showCaption('🎤 목소리 감지 중...', false);
                 },
