@@ -1,6 +1,6 @@
 import { elements, showLoading, showError, hideOverlays, updateMetadata } from './modules/ui.js';
 import { getStreamInfo } from './modules/api.js';
-import { openChatPopup } from './modules/chat.js';
+import { loadChatIframe, openChatPopup } from './modules/chat.js';
 import { VideoEnhancer } from './modules/video-enhancer.js';
 import { AudioEnhancer } from './modules/audio-enhancer.js';
 import { MediaTools } from './modules/media-tools.js';
@@ -703,7 +703,7 @@ async function startStream(channel, retryCount = 0) {
         updateQualityMenu();
         startQualityWatch(); // 화질 목록 정기 감시 시작
 
-        // 채팅 로드는 더 이상 수행하지 않음 (팝업만 지원)
+        loadChatIframe(channel);
 
     } catch (e) {
         console.error(e);
@@ -869,7 +869,9 @@ function init() {
         },
         toggleTranslation: () => Captions.toggleTranslation(),
         // 채팅
-        toggleChat: () => { /* 채팅 단축키 제거 */ },
+        toggleChat: () => {
+            document.getElementById('player-container')?.classList.toggle('chat-visible');
+        },
         // 속도
         speedUp: () => PlaybackSpeed.speedUp(),
         speedDown: () => PlaybackSpeed.speedDown(),
@@ -891,6 +893,11 @@ function init() {
         }
     });
 
+
+    // 넓은 화면에서 기본적으로 채팅창 열기
+    if (window.innerWidth > 1000) {
+        document.getElementById('player-container')?.classList.add('chat-visible');
+    }
 
     startStream(currentChannel);
 }

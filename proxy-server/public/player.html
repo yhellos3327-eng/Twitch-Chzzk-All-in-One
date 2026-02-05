@@ -312,9 +312,12 @@
             <button onclick="location.reload()" class="text-btn" style="margin-top:10px;">새로고침</button>
         </div>
         
-        <!-- Sidebar placeholder for player.js compatibility -->
-        <div id="sidebar" class="hidden" style="display:none;"></div>
-        <div class="app" style="height:100%; width:100%;"></div>
+        <!-- 사이드바 (채팅창) -->
+        <div id="sidebar">
+            <div id="chat-container">
+                <!-- iframe은 modules/chat.js에 의해 동적으로 생성/관리됨 -->
+            </div>
+        </div>
     </div>
     
     <script type="module" src="player.js"></script>
