@@ -61,7 +61,37 @@
                 </div>
             </div>
 
+            <!-- 미디어 도구 (타임머신, 스크린샷, 녹화) -->
+            <div class="control-center">
+                <button id="seek-back-btn" class="control-btn" title="10초 뒤로 (J)">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" transform="rotate(180, 12, 12)"/></svg>
+                </button>
+                <button id="go-live-btn" class="control-btn live-btn" title="라이브로 이동 (Home)">
+                    <span class="live-dot"></span>
+                    LIVE
+                </button>
+                <button id="seek-forward-btn" class="control-btn" title="10초 앞으로 (L)">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+                </button>
+
+                <div class="control-divider"></div>
+
+                <button id="screenshot-btn" class="control-btn" title="스크린샷 (Shift+S)">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                </button>
+                <button id="record-btn" class="control-btn" title="클립 녹화 (Shift+R)">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><circle fill="currentColor" cx="12" cy="12" r="8"/></svg>
+                    <span id="record-time" class="record-time"></span>
+                </button>
+            </div>
+
             <div class="control-right">
+                <!-- 녹화 인디케이터 -->
+                <div id="record-indicator" class="record-indicator" style="display: none;">
+                    <span class="rec-dot"></span>
+                    <span>REC</span>
+                </div>
+
                 <div class="quality-wrapper">
                     <button id="quality-btn" class="control-text-btn">Source</button>
                     <span id="quality-badge" class="quality-badge" style="display:none;">HD</span>

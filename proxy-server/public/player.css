@@ -1034,3 +1034,247 @@ input[type=range].vertical-slider::-moz-range-thumb {
   background: var(--primary-color);
   color: white;
 }
+
+/* ========================================
+   Media Tools - Time Machine, Screenshot, Record
+   ======================================== */
+
+/* Control Center (중앙 미디어 도구) */
+.control-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--bg-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 16px;
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.control-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 6px;
+}
+
+/* Live Button */
+.live-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: var(--error);
+  transition: all var(--transition-fast);
+}
+
+.live-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: var(--error);
+  box-shadow: 0 0 16px var(--error-glow);
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--error);
+  border-radius: 50%;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Record Button States */
+#record-btn {
+  position: relative;
+}
+
+#record-btn svg {
+  transition: all var(--transition-fast);
+}
+
+#record-btn:hover svg {
+  fill: var(--error);
+}
+
+#record-btn.recording {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid var(--error);
+  animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+#record-btn.recording svg {
+  fill: var(--error);
+}
+
+@keyframes recording-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.record-time {
+  display: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--error);
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+#record-btn.recording .record-time {
+  display: block;
+}
+
+/* Record Indicator (녹화중 표시) */
+.record-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--error);
+  animation: indicator-blink 1s ease-in-out infinite;
+}
+
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--error);
+  border-radius: 50%;
+  animation: pulse-dot 0.8s ease-in-out infinite;
+}
+
+@keyframes indicator-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Screenshot Button */
+#screenshot-btn:hover svg {
+  color: var(--success);
+}
+
+#screenshot-btn:active {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+/* ========================================
+   Media Notification (알림 토스트)
+   ======================================== */
+.media-notification {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 14px 28px;
+  background: var(--bg-menu);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: 14px;
+  box-shadow: var(--glass-shadow-lg);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 9999;
+  opacity: 0;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.media-notification.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Notification Types */
+.media-notification-success {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 20px var(--success-glow);
+}
+
+.media-notification-success::before {
+  content: '✓';
+  margin-right: 8px;
+  color: var(--success);
+}
+
+.media-notification-error {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 20px var(--error-glow);
+}
+
+.media-notification-error::before {
+  content: '✕';
+  margin-right: 8px;
+  color: var(--error);
+}
+
+.media-notification-info {
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.media-notification-recording {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 20px var(--error-glow);
+  animation: notification-recording 1.5s ease-in-out infinite;
+}
+
+.media-notification-recording::before {
+  content: '●';
+  margin-right: 8px;
+  color: var(--error);
+  animation: rec-blink 0.8s ease-in-out infinite;
+}
+
+@keyframes notification-recording {
+  0%, 100% { box-shadow: 0 0 20px var(--error-glow); }
+  50% { box-shadow: 0 0 30px var(--error-glow), 0 0 40px var(--error-glow); }
+}
+
+@keyframes rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ========================================
+   Keyboard Shortcuts Hint (선택적)
+   ======================================== */
+.shortcut-hint {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+  margin-bottom: 6px;
+}
+
+.control-btn:hover .shortcut-hint {
+  opacity: 1;
+}

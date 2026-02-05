@@ -212,28 +212,46 @@
 
     const target = event.target;
 
-    // 사이드바 요소 확인
+    // 사이드바 내부 확인 (먼저 체크)
+    const isInSidebar = target.closest('#side-nav') ||
+      target.closest('[class*="side-nav"]') ||
+      target.closest('[data-a-target="side-nav"]') ||
+      target.closest('.side-nav-section') ||
+      target.closest('[class*="SideNav"]');
+
+    if (!isInSidebar) return false;
+
+    // 사이드바 요소 확인 - 더 넓은 범위로 확장
     const sidebarItem = target.closest('[data-a-target="side-nav-card"]') ||
       target.closest('[class*="side-nav-card"]') ||
       target.closest('[data-test-selector="followed-channel"]') ||
       target.closest('.tw-transition-group a[href]') ||
-      target.closest('[data-a-id]');
+      target.closest('[data-a-id]') ||
+      target.closest('a[href^="/"]') ||  // 사이드바 내 모든 채널 링크
+      target.closest('[class*="SideNavCard"]') ||
+      target.closest('[class*="FollowedChannel"]');
 
-    // 사이드바 내부 확인
-    const isInSidebar = target.closest('#side-nav') ||
-      target.closest('[class*="side-nav"]') ||
-      target.closest('[data-a-target="side-nav"]');
+    if (sidebarItem) {
+      // 사이드바 아이템에서 채널 찾기
+      let channel = findChannelFromElement(sidebarItem);
 
-    if (sidebarItem && isInSidebar) {
-      const channel = findChannelFromElement(sidebarItem);
+      // 못 찾으면 링크에서 직접 추출
+      if (!channel) {
+        const link = sidebarItem.closest('a[href]') || sidebarItem.querySelector('a[href]');
+        if (link) {
+          channel = extractChannelFromHref(link.getAttribute('href'));
+        }
+      }
+
       if (channel) {
         console.log(LOG_PREFIX, 'Sidebar item clicked:', channel);
         event.preventDefault();
         event.stopPropagation();
         openPlayer(channel);
-        return;
+        return true;
       }
     }
+    return false;
   }
 
   // 전역 클릭 핸들러
@@ -242,14 +260,25 @@
 
     const target = event.target;
 
-    // 제외할 요소 클릭 시 무시
+    // 사이드바 처리 (먼저 체크 - 사이드바는 제외 조건 무시)
+    const isInSidebar = target.closest('#side-nav') ||
+      target.closest('[class*="side-nav"]') ||
+      target.closest('[data-a-target="side-nav"]') ||
+      target.closest('.side-nav-section') ||
+      target.closest('[class*="SideNav"]');
+
+    if (isInSidebar) {
+      if (handleSidebarClick(event)) {
+        return; // 사이드바 처리 성공시 종료
+      }
+    }
+
+    // 제외할 요소 클릭 시 무시 (사이드바 외부에서만 적용)
     if (target.closest('[class*="ScTagContent"]') || // 태그
       target.closest('[class*="StreamTagButton"]') || // 스트림 태그 버튼
-      target.closest('[class*="tw-image-avatar"]') || // 프로필 이미지
       target.closest('[data-test-selector="top-nav__browse-link"]') || // 탐색 링크
       target.closest('[aria-label="탐색"]') || // 탐색 라벨
-      target.closest('[data-a-target="followed-channel"]') === null && target.closest('[class*="ChannelStatusTextIndicator"]') || // 채널 상태 텍스트
-      target.closest('nav') || // 네비게이션 바
+      target.closest('[class*="ChannelStatusTextIndicator"]') || // 채널 상태 텍스트
       target.closest('[data-a-target="top-nav-container"]')) { // 상단 네비게이션
       console.log(LOG_PREFIX, 'Click ignored due to exclude selector');
       return;
@@ -257,9 +286,6 @@
 
     // 스트림 카드 처리
     handleStreamCardClick(event);
-
-    // 사이드바 처리
-    handleSidebarClick(event);
   }
 
   // 특정 영역에 이벤트 리스너 설정

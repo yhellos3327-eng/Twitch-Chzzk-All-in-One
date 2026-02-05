@@ -3,6 +3,7 @@ import { getStreamInfo } from './modules/api.js';
 import { loadChatIframe, refreshChat, openChatPopup } from './modules/chat.js';
 import { VideoEnhancer } from './modules/video-enhancer.js';
 import { AudioEnhancer } from './modules/audio-enhancer.js';
+import { MediaTools } from './modules/media-tools.js';
 
 let hls = null;
 let currentChannel = null;
@@ -265,6 +266,35 @@ function setupControls() {
         channelNameEl.style.cursor = 'pointer';
         channelNameEl.addEventListener('click', goToChannel);
     }
+
+    // Media Tools Controls
+    const screenshotBtn = document.getElementById('screenshot-btn');
+    const recordBtn = document.getElementById('record-btn');
+    const seekBackBtn = document.getElementById('seek-back-btn');
+    const seekForwardBtn = document.getElementById('seek-forward-btn');
+    const goLiveBtn = document.getElementById('go-live-btn');
+
+    if (screenshotBtn) {
+        screenshotBtn.addEventListener('click', () => MediaTools.takeScreenshot());
+    }
+    if (recordBtn) {
+        recordBtn.addEventListener('click', () => {
+            if (MediaTools.isRecording) {
+                MediaTools.stopRecording();
+            } else {
+                MediaTools.startRecording();
+            }
+        });
+    }
+    if (seekBackBtn) {
+        seekBackBtn.addEventListener('click', () => MediaTools.seekBackward(10));
+    }
+    if (seekForwardBtn) {
+        seekForwardBtn.addEventListener('click', () => MediaTools.seekForward(10));
+    }
+    if (goLiveBtn) {
+        goLiveBtn.addEventListener('click', () => MediaTools.goLive());
+    }
 }
 
 async function startStream(channel) {
@@ -297,6 +327,9 @@ async function startStream(channel) {
                 setTimeout(() => {
                     AudioEnhancer.activate();
                 }, 500);
+
+                // Initialize MediaTools after video is ready
+                MediaTools.init(video, channel);
             });
         }
 
