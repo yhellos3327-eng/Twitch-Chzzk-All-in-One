@@ -31,11 +31,10 @@
                 </div>
             </div>
             
-            <div class="controls-right">
-                <div id="viewer-count-container" class="viewer-count" style="display:none;">
-                    <span class="red-dot"></span>
-                    <span id="viewer-count">0</span>명 시청 중
-                </div>
+                <!-- 채팅 팝업 버튼 -->
+                <button id="popout-chat" class="icon-btn" title="채팅 팝업">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </button>
 
                 <!-- 설정 버튼 -->
                 <button id="settings-btn" class="icon-btn" title="설정">
@@ -140,19 +139,6 @@
                 <button id="open-twitch" style="display:none;">Twitch</button>
                 <button id="retry-btn" style="display:none;">Retry</button>
             </div>
-        </div>
-
-        <!-- 채팅 오버레이 UI -->
-        <div class="controls-overlay-chat" style="position:absolute; bottom:20px; right:20px; z-index:20;">
-             <button id="toggle-chat" class="icon-btn-large" title="채팅 토글">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-             </button>
-             <button id="refresh-chat" class="icon-btn-large" title="채팅 새로고침" style="margin-left: 8px;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-             </button>
-             <button id="popout-chat" class="icon-btn-large" title="채팅 팝업" style="margin-left: 8px;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-             </button>
         </div>
 
         <!-- 설정 메뉴 -->

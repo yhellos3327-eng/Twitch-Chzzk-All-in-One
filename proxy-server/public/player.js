@@ -1,6 +1,6 @@
 import { elements, showLoading, showError, hideOverlays, updateMetadata } from './modules/ui.js';
 import { getStreamInfo } from './modules/api.js';
-import { loadChatIframe, refreshChat, openChatPopup } from './modules/chat.js';
+import { openChatPopup } from './modules/chat.js';
 import { VideoEnhancer } from './modules/video-enhancer.js';
 import { AudioEnhancer } from './modules/audio-enhancer.js';
 import { MediaTools } from './modules/media-tools.js';
@@ -231,6 +231,7 @@ function setupPopoutMode() {
         '.control-center',    // 미디어 도구 (타임머신, 스크린샷 등)
         '#stats-btn',         // 통계 버튼
         '#seekbar-container', // 시크바 (라이브는 불필요)
+        '#popout-chat',       // 채팅 팝업 버튼 (이미 팝아웃 상태)
     ];
 
     hideElements.forEach(selector => {
@@ -268,33 +269,56 @@ function setupPopoutMode() {
         
         body.popout-mode .control-bar {
             background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            padding: 12px 16px;
+            padding: 6px 12px;  /* 패딩 축소 */
+            height: 44px;      /* 높이 고정 */
         }
         
-        body.popout-mode .control-left {
-            gap: 8px;
-        }
-        
+        body.popout-mode .control-left,
         body.popout-mode .control-right {
-            gap: 8px;
+            gap: 4px;          /* 간격 축소 */
+        }
+
+        /* 버튼 크기 축소 */
+        body.popout-mode .control-btn,
+        body.popout-mode .control-text-btn,
+        body.popout-mode .icon-btn {
+            transform: scale(0.85);
+            margin: -2px;
+        }
+
+        /* 화질 텍스트 버튼 패딩 조정 */
+        body.popout-mode #quality-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        /* 볼륨 슬라이더 너비 조정 */
+        body.popout-mode .volume-slider {
+            width: 60px;
+        }
+        
+        body.popout-mode .volume-group:hover .volume-slider {
+            width: 70px;
         }
         
         /* 간단한 채널 표시 */
         body.popout-mode::before {
             content: '${currentChannel}';
             position: fixed;
-            top: 12px;
-            left: 12px;
-            padding: 6px 12px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            font-size: 13px;
-            font-weight: 600;
-            border-radius: 6px;
+            top: 8px;
+            left: 8px;
+            padding: 4px 10px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 11px;
+            font-weight: 500;
+            border-radius: 4px;
             z-index: 100;
             opacity: 0;
             transition: opacity 0.2s;
             pointer-events: none;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         body.popout-mode:hover::before {
@@ -373,22 +397,7 @@ function setupControls() {
     // PIP는 MultiView 모듈에서 관리
     // pipBtn 이벤트는 multiview.js의 setupEventListeners에서 설정됨
 
-    // Chat Toggles
-    const toggleChat = elements.toggleChatBtn();
-    if (toggleChat) toggleChat.addEventListener('click', () => {
-        const app = elements.app();
-        if (app) app.classList.toggle('chat-visible');
-        else {
-            // Fallback if app class not found
-            const chat = elements.chatContainer();
-            if (chat) {
-                const isVis = chat.style.right === '0px';
-                chat.style.right = isVis ? '-340px' : '0';
-            }
-        }
-    });
-    const refresh = elements.refreshChatBtn();
-    if (refresh) refresh.addEventListener('click', () => refreshChat(currentChannel));
+    // Chat Popout
     const popout = elements.popoutChatBtn();
     if (popout) popout.addEventListener('click', () => openChatPopup(currentChannel));
 
@@ -860,10 +869,7 @@ function init() {
         },
         toggleTranslation: () => Captions.toggleTranslation(),
         // 채팅
-        toggleChat: () => {
-            const container = document.getElementById('player-container');
-            container?.classList.toggle('chat-visible');
-        },
+        toggleChat: () => { /* 채팅 단축키 제거 */ },
         // 속도
         speedUp: () => PlaybackSpeed.speedUp(),
         speedDown: () => PlaybackSpeed.speedDown(),
@@ -885,10 +891,6 @@ function init() {
         }
     });
 
-    if (window.innerWidth > 1000) {
-        const app = elements.app();
-        if (app) app.classList.add('chat-visible');
-    }
 
     startStream(currentChannel);
 }
