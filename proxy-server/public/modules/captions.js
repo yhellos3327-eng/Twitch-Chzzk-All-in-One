@@ -1,6 +1,8 @@
 // AI Captions Module - @ricky0123/vad-web 기반 실시간 음성 감지
 // 라이브러리를 사용하여 브라우저에서 직접 음성을 감지합니다.
 
+import { AudioEnhancer } from './audio-enhancer.js';
+
 export const Captions = {
     isActive: false,
     videoElement: null,
@@ -10,7 +12,6 @@ export const Captions = {
 
     // VAD 관련
     myvad: null,
-    audioContext: null,
 
     // UI 설정
     fontSize: 'medium',
@@ -63,37 +64,11 @@ export const Captions = {
                 throw new Error('VAD library (vad) not found. Check bundle.min.js loading.');
             }
 
-            // 비디오 엘리먼트로부터 오디오 스트림 추출
-            // 오디오를 캡처하기 위해 비디오 엘리먼트에 captureStream()을 시도하거나,
-            // MediaElementSource를 사용합니다.
+            // AudioEnhancer를 통해 오디오 스트림 가져오기 (CORS 및 중복 연결 문제 해결)
+            const stream = AudioEnhancer.getStream();
 
-            // @ricky0123/vad-web은 기본적으로 mic를 사용하지만, 사용자 정의 stream을 넘길 수 있습니다.
-            // 하지만 비디오 엘리먼트의 오디오를 바로 넘기려면 MediaStream이 필요합니다.
-
-            let stream;
-            try {
-                // 비디오 엘리먼트가 cross-origin인 경우 오디오 노드 연결이 필요함
-                this.videoElement.crossOrigin = "anonymous";
-
-                if (!this.audioContext) {
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                }
-
-                if (this.audioContext.state === 'suspended') {
-                    await this.audioContext.resume();
-                }
-
-                const source = this.audioContext.createMediaElementSource(this.videoElement);
-                const destination = this.audioContext.createMediaStreamDestination();
-                source.connect(destination);
-                source.connect(this.audioContext.destination); // 스피커로 소리 출력 유지
-
-                stream = destination.stream;
-            } catch (err) {
-                console.warn('[Captions] Failed to create stream from video, falling back to microphone:', err);
-                // 실패 시 마이크로 시도 (fallback)
-                // stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                throw new Error('비디오 오디오를 캡처할 수 없습니다. (CORS 문제일 수 있음)');
+            if (!stream) {
+                throw new Error('오디오 스트림을 가져올 수 없습니다. 비디오가 로드되었는지 확인해주세요.');
             }
 
             // VAD 인스턴스 생성
@@ -114,7 +89,7 @@ export const Captions = {
             this.isActive = true;
             this.captionContainer.classList.add('active');
             this.updateStatus('듣는 중...');
-            console.log('[Captions] VAD Started with video stream');
+            console.log('[Captions] VAD Started with shared stream from AudioEnhancer');
 
         } catch (e) {
             console.error('[Captions] Start failed:', e);

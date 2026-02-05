@@ -9,6 +9,7 @@ export const AudioEnhancer = {
     freqs: [60, 250, 1000, 4000, 12000],
     isInitialized: false,
     sourceConnected: false,
+    streamDestination: null,
 
     init() {
         this.elements = {
@@ -188,6 +189,10 @@ export const AudioEnhancer = {
 
             console.log('[Audio] Audio chain connected');
 
+            // 자막 등 다른 모듈을 위한 스트림 데스티네이션 생성
+            this.streamDestination = this.context.createMediaStreamDestination();
+            this.gainNode.connect(this.streamDestination);
+
             // Setup user interaction to resume context
             this.setupContextResume();
 
@@ -197,6 +202,22 @@ export const AudioEnhancer = {
             console.error('[Audio] Setup failed:', e);
             return false;
         }
+    },
+
+    // 다른 모듈(자막 등)에서 오디오 스트림을 가져올 수 있도록 함
+    getStream() {
+        if (!this.context) {
+            this.setupContext();
+        }
+        if (this.context && this.context.state === 'suspended') {
+            this.context.resume();
+        }
+        return this.streamDestination ? this.streamDestination.stream : null;
+    },
+
+    getContext() {
+        if (!this.context) this.setupContext();
+        return this.context;
     },
 
     setupContextResume() {
@@ -287,8 +308,8 @@ export const AudioEnhancer = {
         }
 
         console.log('[Audio] Nodes updated - Boost:', this.settings.boost + '%',
-                    'Compressor:', this.settings.compressor,
-                    'EQ:', this.settings.eq);
+            'Compressor:', this.settings.compressor,
+            'EQ:', this.settings.eq);
     },
 
     // Public method to manually trigger context setup (call after video is ready)
