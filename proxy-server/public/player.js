@@ -64,6 +64,12 @@ function updateQualityMenu() {
         return `<button class="quality-item ${i === currentQualityIndex ? 'active' : ''}" data-index="${i}">${displayName}</button>`;
     }).join('');
 
+    // quality-btn 텍스트도 현재 화질로 업데이트
+    const qualityBtn = elements.qualityBtn();
+    if (qualityBtn && qualities[currentQualityIndex]) {
+        qualityBtn.textContent = getQualityDisplayName(qualities[currentQualityIndex]);
+    }
+
     menu.querySelectorAll('.quality-item').forEach(item => {
         item.addEventListener('click', () => {
             changeQuality(parseInt(item.dataset.index));
@@ -90,9 +96,17 @@ function changeQuality(index) {
         });
     }
 
+    const displayName = getQualityDisplayName(quality);
+
+    // quality-btn 텍스트 업데이트
+    const qualityBtn = elements.qualityBtn();
+    if (qualityBtn) {
+        qualityBtn.textContent = displayName;
+    }
+
     const badge = elements.qualityBadge();
     if (badge) {
-        badge.textContent = getQualityDisplayName(quality);
+        badge.textContent = displayName;
         badge.style.display = 'inline-block';
     }
 }

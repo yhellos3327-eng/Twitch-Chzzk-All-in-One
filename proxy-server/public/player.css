@@ -84,12 +84,10 @@ html {
   right: 0;
   height: 90px;
   padding: 0 28px;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.95) 0%,
-    rgba(0, 0, 0, 0.7) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(to bottom,
+      rgba(0, 0, 0, 0.95) 0%,
+      rgba(0, 0, 0, 0.7) 50%,
+      transparent 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -159,8 +157,15 @@ html {
 }
 
 @keyframes pulse-badge {
-  0%, 100% { box-shadow: 0 0 12px var(--error-glow); }
-  50% { box-shadow: 0 0 20px var(--error-glow), 0 0 30px var(--error-glow); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 12px var(--error-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 20px var(--error-glow), 0 0 30px var(--error-glow);
+  }
 }
 
 .text-info {
@@ -240,8 +245,15 @@ html {
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* ========================================
@@ -254,12 +266,10 @@ html {
   right: 0;
   height: 80px;
   padding: 0 28px;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.95) 0%,
-    rgba(0, 0, 0, 0.7) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(to top,
+      rgba(0, 0, 0, 0.95) 0%,
+      rgba(0, 0, 0, 0.7) 50%,
+      transparent 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -414,6 +424,7 @@ html {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -480,6 +491,7 @@ html {
     opacity: 0;
     transform: translateY(-16px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -564,8 +576,13 @@ html {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Settings Items - Glass Style */
@@ -657,13 +674,13 @@ html {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-input:checked + .slider {
+input:checked+.slider {
   background: var(--accent-gradient);
   border-color: transparent;
   box-shadow: 0 0 16px var(--accent-glow);
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
   transform: translateX(20px);
 }
 
@@ -947,8 +964,13 @@ input[type=range].vertical-slider::-moz-range-thumb {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .error-icon {
@@ -1113,9 +1135,12 @@ input[type=range].vertical-slider::-moz-range-thumb {
 }
 
 @keyframes recording-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
   }
+
   50% {
     box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
   }
@@ -1162,8 +1187,15 @@ input[type=range].vertical-slider::-moz-range-thumb {
 }
 
 @keyframes indicator-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
 }
 
 /* Screenshot Button */
@@ -1246,13 +1278,27 @@ input[type=range].vertical-slider::-moz-range-thumb {
 }
 
 @keyframes notification-recording {
-  0%, 100% { box-shadow: 0 0 20px var(--error-glow); }
-  50% { box-shadow: 0 0 30px var(--error-glow), 0 0 40px var(--error-glow); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px var(--error-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 30px var(--error-glow), 0 0 40px var(--error-glow);
+  }
 }
 
 @keyframes rec-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* ========================================
@@ -1340,12 +1386,29 @@ input[type=range].vertical-slider::-moz-range-thumb {
 }
 
 /* Caption Font Sizes */
-.caption-container.font-small .caption-current { font-size: 16px; }
-.caption-container.font-small .caption-line { font-size: 14px; }
-.caption-container.font-medium .caption-current { font-size: 20px; }
-.caption-container.font-medium .caption-line { font-size: 16px; }
-.caption-container.font-large .caption-current { font-size: 26px; }
-.caption-container.font-large .caption-line { font-size: 20px; }
+.caption-container.font-small .caption-current {
+  font-size: 16px;
+}
+
+.caption-container.font-small .caption-line {
+  font-size: 14px;
+}
+
+.caption-container.font-medium .caption-current {
+  font-size: 20px;
+}
+
+.caption-container.font-medium .caption-line {
+  font-size: 16px;
+}
+
+.caption-container.font-large .caption-current {
+  font-size: 26px;
+}
+
+.caption-container.font-large .caption-line {
+  font-size: 20px;
+}
 
 .caption-status {
   display: flex;
@@ -1913,4 +1976,40 @@ input[type=range].vertical-slider::-moz-range-thumb {
 .caption-dialog-cancel:hover {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-main);
+}
+
+/* ========================================
+   Uptime Display - 방송 업타임 표시
+   ======================================== */
+.uptime-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-glass);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  padding: 8px 14px;
+  border-radius: 24px;
+  border: var(--glass-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  transition: all var(--transition-fast);
+}
+
+.uptime-display:hover {
+  background: var(--bg-glass-hover);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.uptime-icon {
+  font-size: 14px;
+  filter: grayscale(0.3);
+}
+
+.uptime-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  color: var(--primary-color);
+  text-shadow: 0 0 8px var(--accent-glow);
 }

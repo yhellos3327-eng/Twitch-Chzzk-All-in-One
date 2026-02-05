@@ -65,7 +65,7 @@ export const MediaTools = {
         }
     },
 
-    // ==================== 클립 녹화 (오디오 포함) ====================
+    // ==================== 클립 녹화 (영상 + 시스템 오디오만) ====================
     async startRecording() {
         if (this.isRecording) {
             console.log('[Clip] Already recording');
@@ -78,37 +78,34 @@ export const MediaTools = {
         }
 
         try {
-            // getDisplayMedia로 탭 오디오 캡처
-            // preferCurrentTab: true로 현재 탭만 선택
-            this.displayStream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    displaySurface: 'browser',
-                    width: { ideal: this.video.videoWidth || 1920 },
-                    height: { ideal: this.video.videoHeight || 1080 },
-                    frameRate: { ideal: 30 }
-                },
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    sampleRate: 48000
-                },
-                preferCurrentTab: true,
-                selfBrowserSurface: 'include',
-                systemAudio: 'include'
+            // 비디오 요소에서 직접 스트림 캡처 (채팅 제외, 영상만)
+            const videoStream = this.video.captureStream ?
+                this.video.captureStream(30) :
+                this.video.mozCaptureStream ?
+                    this.video.mozCaptureStream(30) : null;
+
+            if (!videoStream) {
+                // 캡처스트림이 지원되지 않으면 캔버스 기반으로 폴백
+                console.log('[Clip] captureStream not supported, using canvas fallback');
+                return this.startCanvasRecording();
+            }
+
+            // 시스템 오디오만 캡처 (마이크 제외)
+            let combinedStream = new MediaStream();
+
+            // 비디오 트랙 추가
+            videoStream.getVideoTracks().forEach(track => {
+                combinedStream.addTrack(track);
             });
 
-            // 스트림 종료 감지 (사용자가 공유 중지 클릭 시)
-            this.displayStream.getVideoTracks()[0].onended = () => {
-                if (this.isRecording) {
-                    this.stopRecording();
-                }
-            };
+            // 비디오의 오디오 트랙 추가 (시스템 오디오)
+            videoStream.getAudioTracks().forEach(track => {
+                combinedStream.addTrack(track);
+            });
 
-            // 오디오 트랙 확인
-            const audioTracks = this.displayStream.getAudioTracks();
-            const hasAudio = audioTracks.length > 0;
-            console.log('[Clip] Audio tracks:', audioTracks.length, hasAudio ? audioTracks[0].label : 'none');
+            const hasAudio = combinedStream.getAudioTracks().length > 0;
+            console.log('[Clip] Video tracks:', combinedStream.getVideoTracks().length);
+            console.log('[Clip] Audio tracks:', combinedStream.getAudioTracks().length);
 
             // MediaRecorder 설정
             const options = {
@@ -117,8 +114,9 @@ export const MediaTools = {
                 audioBitsPerSecond: 128000   // 128 kbps
             };
 
-            this.mediaRecorder = new MediaRecorder(this.displayStream, options);
+            this.mediaRecorder = new MediaRecorder(combinedStream, options);
             this.recordedChunks = [];
+            this.capturedStream = combinedStream;
 
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -128,14 +126,14 @@ export const MediaTools = {
 
             this.mediaRecorder.onstop = () => {
                 this.saveRecording();
-                this.cleanupDisplayStream();
+                this.cleanupStreams();
             };
 
             this.mediaRecorder.onerror = (event) => {
                 console.error('[Clip] Recording error:', event.error);
                 this.showNotification('녹화 오류 발생', 'error');
                 this.isRecording = false;
-                this.cleanupDisplayStream();
+                this.cleanupStreams();
             };
 
             // 녹화 시작
@@ -156,23 +154,122 @@ export const MediaTools = {
 
         } catch (e) {
             console.error('[Clip] Start recording error:', e);
-
-            if (e.name === 'NotAllowedError') {
-                this.showNotification('화면 공유가 취소되었습니다', 'error');
-            } else {
-                this.showNotification('녹화 시작 실패', 'error');
-            }
-
+            this.showNotification('녹화 시작 실패', 'error');
             this.isRecording = false;
-            this.cleanupDisplayStream();
+            this.cleanupStreams();
         }
     },
 
-    cleanupDisplayStream() {
+    // 캔버스 기반 녹화 (captureStream 미지원 브라우저용, 오디오 포함)
+    async startCanvasRecording() {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = this.video.videoWidth || 1920;
+            canvas.height = this.video.videoHeight || 1080;
+            const ctx = canvas.getContext('2d');
+
+            // 캔버스 스트림 (비디오)
+            const canvasStream = canvas.captureStream(30);
+
+            // 비디오 요소의 오디오 스트림 얻기 (시스템 오디오만)
+            const videoStream = this.video.captureStream ?
+                this.video.captureStream() : null;
+
+            // 스트림 합치기
+            const combinedStream = new MediaStream();
+
+            // 캔버스 비디오 트랙 추가
+            canvasStream.getVideoTracks().forEach(track => {
+                combinedStream.addTrack(track);
+            });
+
+            // 비디오의 오디오 트랙 추가 (시스템 오디오만, 마이크 제외)
+            if (videoStream) {
+                videoStream.getAudioTracks().forEach(track => {
+                    combinedStream.addTrack(track);
+                });
+            }
+
+            const hasAudio = combinedStream.getAudioTracks().length > 0;
+
+            const options = {
+                mimeType: this.getSupportedMimeType(),
+                videoBitsPerSecond: 8000000,
+                audioBitsPerSecond: 128000
+            };
+
+            this.mediaRecorder = new MediaRecorder(combinedStream, options);
+            this.recordedChunks = [];
+            this.recordingCanvas = canvas;
+            this.recordingCtx = ctx;
+            this.capturedStream = combinedStream;
+
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.recordedChunks.push(event.data);
+                }
+            };
+
+            this.mediaRecorder.onstop = () => {
+                this.saveRecording();
+                this.recordingCanvas = null;
+                this.recordingCtx = null;
+                this.cleanupStreams();
+            };
+
+            this.mediaRecorder.onerror = (event) => {
+                console.error('[Clip] Recording error:', event.error);
+                this.showNotification('녹화 오류 발생', 'error');
+                this.isRecording = false;
+                this.recordingCanvas = null;
+                this.recordingCtx = null;
+                this.cleanupStreams();
+            };
+
+            this.isRecording = true;
+            this.recordingStartTime = Date.now();
+            this.mediaRecorder.start(1000);
+
+            // 프레임 그리기
+            const drawFrame = () => {
+                if (this.isRecording && this.recordingCtx && this.video) {
+                    this.recordingCtx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
+                    requestAnimationFrame(drawFrame);
+                }
+            };
+            drawFrame();
+
+            const audioStatus = hasAudio ? '오디오 포함' : '오디오 없음';
+            this.showNotification(`녹화 시작 (최대 2분, ${audioStatus})`, 'recording');
+            this.updateRecordingUI(true);
+
+            setTimeout(() => {
+                if (this.isRecording) {
+                    this.stopRecording();
+                }
+            }, this.maxRecordingDuration);
+
+        } catch (e) {
+            console.error('[Clip] Canvas recording error:', e);
+            this.showNotification('녹화 시작 실패', 'error');
+            this.isRecording = false;
+        }
+    },
+
+    cleanupStreams() {
         if (this.displayStream) {
             this.displayStream.getTracks().forEach(track => track.stop());
             this.displayStream = null;
         }
+        if (this.capturedStream) {
+            // captureStream에서 얻은 트랙은 원본에 영향을 주지 않도록 주의
+            this.capturedStream = null;
+        }
+    },
+
+    // 레거시 호환성
+    cleanupDisplayStream() {
+        this.cleanupStreams();
     },
 
     // 레거시: 간단한 캔버스 기반 녹화 (비디오만, 오디오 없음)
