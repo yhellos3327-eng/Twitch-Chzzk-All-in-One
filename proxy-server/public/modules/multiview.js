@@ -49,10 +49,6 @@ export const MultiView = {
                         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM9 8h2v8H9zm4 4h2v4h-2z"/></svg>
                         <span>미니 플레이어</span>
                     </button>
-                    <button class="pip-menu-item" data-mode="theater">
-                        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H4V5h16v14z"/></svg>
-                        <span>극장 모드</span>
-                    </button>
                 </div>
                 <div class="pip-menu-divider"></div>
                 <div class="pip-menu-section">
@@ -211,24 +207,16 @@ export const MultiView = {
             .mini-player-btn:hover {
                 background: rgba(255, 255, 255, 0.2);
             }
-
-            /* 극장 모드 */
-            body.theater-mode #player-container {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                z-index: 9998;
-                background: #000;
-            }
             
-            body.theater-mode #sidebar {
-                display: none;
-            }
-            
-            body.theater-mode .video-wrapper {
-                height: 100vh;
+            .mini-player-loading {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.8);
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 13px;
             }
 
             /* 멀티뷰 */
@@ -464,32 +452,8 @@ export const MultiView = {
         const pipMenu = document.getElementById('pip-menu');
 
         if (pipBtn && pipMenu) {
-            // 일반 클릭 → 바로 PIP 모드 활성화
-            pipBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-
-                // Shift+클릭이면 메뉴 표시
-                if (e.shiftKey) {
-                    pipMenu.classList.toggle('show');
-                    return;
-                }
-
-                // 바로 PIP 토글
-                try {
-                    if (document.pictureInPictureElement) {
-                        await document.exitPictureInPicture();
-                    } else if (this.videoElement && document.pictureInPictureEnabled) {
-                        await this.videoElement.requestPictureInPicture();
-                    }
-                } catch (e) {
-                    console.error('[MultiView] PIP failed:', e);
-                    this.showNotification('PIP 활성화 실패', 'error');
-                }
-            });
-
-            // 우클릭 → 메뉴 표시
-            pipBtn.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
+            // 클릭 시 메뉴 표시
+            pipBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 pipMenu.classList.toggle('show');
             });
@@ -533,10 +497,7 @@ export const MultiView = {
                 this.openPopout();
                 break;
             case 'mini':
-                this.createMiniPlayer();
-                break;
-            case 'theater':
-                this.toggleTheaterMode();
+                await this.createMiniPlayer();
                 break;
         }
 
@@ -544,14 +505,17 @@ export const MultiView = {
     },
 
     cleanupMode() {
-        // 미니 플레이어 정리
+        // 미니 플레이어 HLS 정리
+        if (this.miniHls) {
+            this.miniHls.destroy();
+            this.miniHls = null;
+        }
+
+        // 미니 플레이어 DOM 정리
         if (this.miniPlayer) {
             this.miniPlayer.remove();
             this.miniPlayer = null;
         }
-
-        // 극장 모드 해제
-        document.body.classList.remove('theater-mode');
 
         // PIP 해제
         if (document.pictureInPictureElement) {
@@ -563,8 +527,7 @@ export const MultiView = {
         const labels = {
             pip: 'PIP',
             popout: '팝아웃 창',
-            mini: '미니 플레이어',
-            theater: '극장 모드'
+            mini: '미니 플레이어'
         };
         return labels[mode] || mode;
     },
@@ -602,14 +565,18 @@ export const MultiView = {
     },
 
     // 미니 플레이어
-    createMiniPlayer() {
+    async createMiniPlayer() {
         if (this.miniPlayer) return;
 
         this.miniPlayer = document.createElement('div');
         this.miniPlayer.className = 'mini-player';
         this.miniPlayer.innerHTML = `
             <video id="mini-video" autoplay muted></video>
+            <div class="mini-player-loading">로딩 중...</div>
             <div class="mini-player-controls">
+                <button class="mini-player-btn" data-action="unmute" title="음소거 해제">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                </button>
                 <button class="mini-player-btn" data-action="expand" title="확대">
                     <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
                 </button>
@@ -621,10 +588,36 @@ export const MultiView = {
 
         document.body.appendChild(this.miniPlayer);
 
-        // 비디오 미러링
         const miniVideo = this.miniPlayer.querySelector('#mini-video');
-        if (this.videoElement.captureStream) {
-            miniVideo.srcObject = this.videoElement.captureStream();
+        const loadingEl = this.miniPlayer.querySelector('.mini-player-loading');
+
+        // HLS 스트림 직접 로드
+        try {
+            const response = await fetch(`/api/twitch/stream/${this.currentChannel}`);
+            const data = await response.json();
+
+            if (data.qualities?.length && Hls.isSupported()) {
+                this.miniHls = new Hls({ debug: false, enableWorker: true });
+                this.miniHls.loadSource(data.qualities[0].url);
+                this.miniHls.attachMedia(miniVideo);
+
+                this.miniHls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    loadingEl.style.display = 'none';
+                    miniVideo.play().catch(() => { });
+                });
+
+                this.miniHls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        console.error('[MiniPlayer] HLS Error:', data);
+                        loadingEl.textContent = '오류';
+                    }
+                });
+            } else {
+                loadingEl.textContent = '스트림 로드 실패';
+            }
+        } catch (e) {
+            console.error('[MiniPlayer] Failed to load stream:', e);
+            loadingEl.textContent = '로드 실패';
         }
 
         // 드래그 이동
@@ -640,6 +633,11 @@ export const MultiView = {
                 } else if (action === 'expand') {
                     this.cleanupMode();
                     window.scrollTo(0, 0);
+                } else if (action === 'unmute') {
+                    miniVideo.muted = !miniVideo.muted;
+                    btn.innerHTML = miniVideo.muted
+                        ? '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>'
+                        : '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
                 }
             });
         });
