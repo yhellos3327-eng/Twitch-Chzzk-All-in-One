@@ -11,6 +11,11 @@ const DEFAULT_SETTINGS = {
     enabled: true,
     disableGrid: true,
     preferredQuality: '1080p'
+  },
+  subtitle: {
+    enabled: false,
+    sttEngine: 'deepgram',
+    apiKey: ''
   }
 };
 
@@ -167,7 +172,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           chrome.tabs.sendMessage(tab.id, {
             type: 'SETTINGS_UPDATED',
             settings: message.settings
-          }).catch(() => {});
+          }).catch(() => { });
         });
       });
     });
@@ -205,6 +210,63 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_STATS') {
     sendResponse(stats);
     return true;
+  }
+});
+
+// Subtitle & Audio Capture Logic
+async function setupOffscreenDocument(path) {
+  const offscreenUrl = chrome.runtime.getURL(path);
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [offscreenUrl]
+  });
+
+  if (existingContexts.length > 0) return;
+
+  await chrome.offscreen.createDocument({
+    url: path,
+    reasons: ['USER_MEDIA'],
+    justification: 'Capture tab audio for real-time speech-to-text translation.'
+  });
+}
+
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  if (message.type === 'START_SUBTITLE') {
+    try {
+      await setupOffscreenDocument('offscreen.html');
+
+      const tab = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab[0]) return;
+
+      const streamId = await chrome.tabCapture.getMediaStreamId({
+        targetTabId: tab[0].id
+      });
+
+      chrome.runtime.sendMessage({
+        target: 'offscreen',
+        type: 'start-capture',
+        streamId: streamId
+      });
+
+      sendResponse({ success: true });
+    } catch (e) {
+      console.error('Failed to start subtitle:', e);
+      sendResponse({ success: false, error: e.message });
+    }
+  }
+
+  if (message.type === 'STOP_SUBTITLE') {
+    chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'stop-capture'
+    });
+    sendResponse({ success: true });
+  }
+
+  if (message.type === 'audio-chunk') {
+    // Here we would receive audio chunks from offscreen and potentially proxy them
+    // or the offscreen document can send them directly if it has network access.
+    // For now, we'll just log or pass through if needed.
   }
 });
 

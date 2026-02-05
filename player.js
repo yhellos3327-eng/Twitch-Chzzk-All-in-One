@@ -16,6 +16,8 @@
   let qualities = [];
   let currentQualityIndex = 0;
   let adDetected = false;
+  let subtitleEnabled = false;
+  let subtitleOverlay = null;
 
   // URL에서 채널명 추출
   function getChannelFromUrl() {
@@ -216,6 +218,8 @@
     chatSandbox: () => document.getElementById('chat-sandbox'),
     chatContainer: () => document.getElementById('chat-container'),
     popoutChatBtn: () => document.getElementById('popout-chat'),
+    subtitleBtn: () => document.getElementById('subtitle-btn'),
+    subtitleOverlay: () => document.getElementById('subtitle-overlay'),
   };
 
   // 로딩 표시
@@ -592,6 +596,19 @@
       elements.playPauseBtn().click();
     });
 
+    // 자막 토글
+    elements.subtitleBtn().addEventListener('click', () => {
+      subtitleEnabled = !subtitleEnabled;
+      elements.subtitleBtn().classList.toggle('active', subtitleEnabled);
+
+      if (subtitleEnabled) {
+        chrome.runtime.sendMessage({ type: 'START_SUBTITLE' });
+      } else {
+        chrome.runtime.sendMessage({ type: 'STOP_SUBTITLE' });
+        elements.subtitleOverlay().innerHTML = '';
+      }
+    });
+
     // 키보드 단축키
     document.addEventListener('keydown', (e) => {
       switch (e.key) {
@@ -623,6 +640,29 @@
       }
     });
   }
+
+  // 메시지 리스너 (STT 결과 수신)
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'subtitle-result' && subtitleEnabled) {
+      const overlay = elements.subtitleOverlay();
+      const chunk = document.createElement('div');
+      chunk.className = 'subtitle-chunk';
+      chunk.textContent = message.text;
+
+      overlay.appendChild(chunk);
+
+      // 일정 시간 후 제거
+      setTimeout(() => {
+        chunk.style.opacity = '0';
+        setTimeout(() => chunk.remove(), 300);
+      }, 5000);
+
+      // 개수 제한
+      while (overlay.children.length > 3) {
+        overlay.removeChild(overlay.firstChild);
+      }
+    }
+  });
 
   // 초기화
   async function init() {
