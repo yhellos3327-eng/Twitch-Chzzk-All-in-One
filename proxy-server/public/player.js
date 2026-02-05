@@ -703,7 +703,7 @@ async function startStream(channel, retryCount = 0) {
         updateQualityMenu();
         startQualityWatch(); // 화질 목록 정기 감시 시작
 
-        loadChatIframe(channel);
+        // 채팅 로드는 더 이상 수행하지 않음 (팝업만 지원)
 
     } catch (e) {
         console.error(e);
