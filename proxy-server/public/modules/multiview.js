@@ -593,7 +593,7 @@ export const MultiView = {
 
         // HLS 스트림 직접 로드
         try {
-            const response = await fetch(`/api/twitch/stream/${this.currentChannel}`);
+            const response = await fetch(`/stream/${this.currentChannel}`);
             const data = await response.json();
 
             if (data.qualities?.length && Hls.isSupported()) {
@@ -754,7 +754,7 @@ export const MultiView = {
 
         try {
             // 스트림 정보 가져오기
-            const response = await fetch(`/api/twitch/stream/${channel}`);
+            const response = await fetch(`/stream/${channel}`);
             const data = await response.json();
 
             if (!data.qualities?.length) {
