@@ -1,8 +1,8 @@
-// AI Captions Module - 실시간 자막 표시
-// =====================================
-// 두 가지 모드 지원:
-// 1. Extension Mode: Background에서 VAD+STT 처리 후 전달받은 텍스트 표시
-// 2. Standalone Mode: Web Speech API 사용 (마이크 입력)
+// AI Captions Module - 실시간 자막 (영상 오디오 → STT)
+// =====================================================
+// 영상의 오디오를 캡처하여 Deepgram STT로 실시간 변환
+
+import { AudioEnhancer } from './audio-enhancer.js';
 
 export const Captions = {
     isActive: false,
@@ -11,26 +11,29 @@ export const Captions = {
     captionHistory: [],
     maxHistoryLines: 3,
 
-    // Mode
-    mode: 'standalone', // 'extension' | 'standalone'
+    // Audio Capture
+    audioContext: null,
+    sourceNode: null,
+    processorNode: null,
+    streamDestination: null,
 
-    // Standalone: Speech Recognition
-    recognition: null,
-    isListening: false,
+    // Deepgram STT
+    sttSocket: null,
+    apiKey: '',
 
     // UI 설정
     fontSize: 'medium',
     position: 'bottom',
     bgOpacity: 0.85,
+    language: 'ko',
 
-    // 언어 설정
-    language: 'ko-KR',
+    // 상태
+    isConnecting: false,
 
     init(videoEl = null) {
         this.videoElement = videoEl || document.getElementById('video-player');
         this.createCaptionUI();
         this.loadSettings();
-        this.setupExtensionListener();
         console.log('[Captions] Initialized');
         return true;
     },
@@ -58,235 +61,249 @@ export const Captions = {
         this.setBgOpacity(this.bgOpacity);
     },
 
-    // Extension 메시지 리스너 설정
-    setupExtensionListener() {
-        // Chrome Extension 환경인지 확인
-        if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
-            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-                this.handleExtensionMessage(message);
-            });
-            console.log('[Captions] Extension listener registered');
+    async start() {
+        if (this.isActive || this.isConnecting) return;
+
+        // API 키 확인
+        if (!this.apiKey) {
+            this.promptApiKey();
+            return;
         }
-    },
 
-    // Extension에서 오는 메시지 처리
-    handleExtensionMessage(message) {
-        switch (message.type) {
-            case 'SUBTITLE_TEXT':
-                if (this.isActive) {
-                    this.showCaption(message.text, message.isFinal);
-                    if (message.isFinal) {
-                        this.addToHistory(message.text);
-                    }
-                }
-                break;
-
-            case 'SUBTITLE_STARTED':
-                this.isActive = true;
-                this.mode = 'extension';
-                this.captionContainer?.classList.add('active');
-                this.updateStatus('연결됨 (VAD+STT)');
-                console.log('[Captions] Extension subtitle started');
-                break;
-
-            case 'SUBTITLE_STOPPED':
-                if (this.mode === 'extension') {
-                    this.isActive = false;
-                    this.captionContainer?.classList.remove('active');
-                    this.updateStatus(null);
-                    this.clearCaption();
-                    console.log('[Captions] Extension subtitle stopped');
-                }
-                break;
-
-            case 'SUBTITLE_SPEECH_START':
-                this.updateStatus('음성 감지됨...');
-                break;
-
-            case 'SUBTITLE_SPEECH_END':
-                this.updateStatus('듣는 중...');
-                break;
-
-            case 'SUBTITLE_ERROR':
-                this.updateStatus(`오류: ${message.error}`);
-                this.showNotification(message.error, 'error');
-                break;
-
-            case 'SUBTITLE_AUDIO_LEVEL':
-                // 오디오 레벨 표시 (선택적)
-                break;
+        if (!this.videoElement) {
+            this.showNotification('비디오 요소를 찾을 수 없습니다.', 'error');
+            return;
         }
-    },
 
-    // Extension을 통한 자막 시작
-    async startWithExtension() {
-        if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
-            this.showNotification('확장 프로그램 환경이 아닙니다.', 'error');
-            return false;
-        }
+        this.isConnecting = true;
+        this.updateStatus('연결 중...');
+        this.captionContainer?.classList.add('active');
 
         try {
-            const response = await chrome.runtime.sendMessage({ type: 'START_SUBTITLE' });
+            // 1. AudioContext 생성 및 비디오 오디오 캡처
+            await this.setupAudioCapture();
 
-            if (response?.success) {
-                this.mode = 'extension';
-                this.isActive = true;
-                this.captionContainer?.classList.add('active');
-                this.updateStatus('초기화 중...');
-                return true;
-            } else {
-                this.showNotification(response?.error || '자막 시작 실패', 'error');
-                return false;
-            }
+            // 2. Deepgram WebSocket 연결
+            await this.connectSTT();
+
+            this.isActive = true;
+            this.isConnecting = false;
+            this.updateStatus('듣는 중...');
+            console.log('[Captions] Started - Video audio capture active');
+
         } catch (e) {
-            console.error('[Captions] Extension start failed:', e);
-            this.showNotification('확장 프로그램 연결 실패', 'error');
-            return false;
+            console.error('[Captions] Start failed:', e);
+            this.isConnecting = false;
+            this.updateStatus('시작 실패');
+            this.showNotification(`자막 시작 실패: ${e.message}`, 'error');
+            this.cleanup();
+            this.captionContainer?.classList.remove('active');
         }
     },
 
-    // Extension을 통한 자막 중지
-    async stopWithExtension() {
-        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-            try {
-                await chrome.runtime.sendMessage({ type: 'STOP_SUBTITLE' });
-            } catch (e) {
-                console.warn('[Captions] Extension stop failed:', e);
+    async setupAudioCapture() {
+        const sampleRate = 16000;
+
+        // 새 AudioContext 생성 (16kHz)
+        const AC = window.AudioContext || window.webkitAudioContext;
+        this.audioContext = new AC({ sampleRate: sampleRate });
+
+        // Context가 suspended 상태면 resume
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+        }
+
+        // MediaElementSource 생성
+        try {
+            this.sourceNode = this.audioContext.createMediaElementSource(this.videoElement);
+            console.log('[Captions] Created MediaElementSource');
+        } catch (e) {
+            if (e.name === 'InvalidStateError') {
+                // 이미 다른 context에 연결됨 - AudioEnhancer의 스트림 사용
+                console.log('[Captions] Video already connected, trying AudioEnhancer stream...');
+
+                // AudioEnhancer 초기화 시도
+                if (!AudioEnhancer.context) {
+                    AudioEnhancer.setupContext();
+                }
+
+                const stream = AudioEnhancer.getStream?.();
+                if (stream) {
+                    // AudioEnhancer 스트림을 새 context에서 사용
+                    this.sourceNode = this.audioContext.createMediaStreamSource(stream);
+                    console.log('[Captions] Using AudioEnhancer stream');
+                } else {
+                    throw new Error('오디오 캡처 실패. 페이지를 새로고침 후 자막을 먼저 활성화해주세요.');
+                }
+            } else {
+                throw e;
             }
         }
 
-        this.isActive = false;
-        this.captionContainer?.classList.remove('active');
-        this.updateStatus(null);
-        this.clearCaption();
+        // 원본 오디오도 들리도록 destination 연결
+        this.sourceNode.connect(this.audioContext.destination);
+
+        // ScriptProcessor로 오디오 데이터 추출 (16kHz, mono)
+        const bufferSize = 4096;
+        this.processorNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+        this.processorNode.onaudioprocess = (e) => {
+            if (!this.isActive || !this.sttSocket || this.sttSocket.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            const inputData = e.inputBuffer.getChannelData(0);
+
+            // Float32 -> Int16 PCM 변환
+            const pcmData = this.float32ToInt16(inputData);
+
+            // WebSocket으로 전송
+            this.sttSocket.send(pcmData.buffer);
+        };
+
+        this.sourceNode.connect(this.processorNode);
+        // processorNode는 destination에 연결하지 않아도 onaudioprocess가 호출됨
+        // 하지만 연결해야 브라우저가 처리함
+        this.processorNode.connect(this.audioContext.destination);
+
+        console.log('[Captions] Audio capture setup complete');
     },
 
-    // Standalone 모드: Web Speech API
-    checkSpeechRecognitionSupport() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            return { supported: false, reason: '이 브라우저는 음성 인식을 지원하지 않습니다.' };
-        }
-        return { supported: true };
-    },
+    async connectSTT() {
+        return new Promise((resolve, reject) => {
+            const params = new URLSearchParams({
+                model: 'nova-2',
+                language: this.language,
+                punctuate: 'true',
+                interim_results: 'true',
+                endpointing: '300',
+                smart_format: 'true',
+                encoding: 'linear16',
+                sample_rate: '16000',
+                channels: '1'
+            });
 
-    async startStandalone() {
-        const support = this.checkSpeechRecognitionSupport();
-        if (!support.supported) {
-            this.showNotification(support.reason, 'error');
-            return false;
-        }
+            const wsUrl = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
 
-        try {
-            this.updateStatus('초기화 중...');
+            this.sttSocket = new WebSocket(wsUrl, ['token', this.apiKey]);
 
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            this.recognition = new SpeechRecognition();
-
-            this.recognition.continuous = true;
-            this.recognition.interimResults = true;
-            this.recognition.lang = this.language;
-            this.recognition.maxAlternatives = 1;
-
-            this.recognition.onstart = () => {
-                this.isListening = true;
-                this.updateStatus('듣는 중... (마이크)');
+            this.sttSocket.onopen = () => {
+                console.log('[Captions] Deepgram connected');
+                resolve();
             };
 
-            this.recognition.onresult = (event) => {
-                this.handleSpeechResult(event);
+            this.sttSocket.onmessage = (event) => {
+                this.handleSTTResult(JSON.parse(event.data));
             };
 
-            this.recognition.onerror = (event) => {
-                console.error('[Captions] Speech error:', event.error);
-                if (event.error === 'no-speech') {
-                    this.updateStatus('음성 대기 중...');
-                } else if (event.error === 'not-allowed') {
-                    this.updateStatus('권한 거부됨');
-                    this.showNotification('마이크 권한이 필요합니다.', 'error');
-                    this.stop();
-                }
+            this.sttSocket.onerror = (error) => {
+                console.error('[Captions] WebSocket error:', error);
+                reject(new Error('STT 연결 오류 - API 키를 확인해주세요.'));
             };
 
-            this.recognition.onend = () => {
-                if (this.isActive && this.isListening && this.mode === 'standalone') {
+            this.sttSocket.onclose = (event) => {
+                console.log('[Captions] Deepgram disconnected:', event.code, event.reason);
+                if (this.isActive && event.code !== 1000) {
+                    this.updateStatus('재연결 중...');
+                    // 재연결 시도
                     setTimeout(() => {
                         if (this.isActive) {
-                            try { this.recognition.start(); } catch (e) { }
+                            this.connectSTT().catch(e => {
+                                console.error('[Captions] Reconnect failed:', e);
+                                this.stop();
+                            });
                         }
-                    }, 100);
+                    }, 2000);
                 }
             };
 
-            this.recognition.start();
-            this.mode = 'standalone';
-            this.isActive = true;
-            this.captionContainer?.classList.add('active');
-            return true;
-
-        } catch (e) {
-            console.error('[Captions] Standalone start failed:', e);
-            this.showNotification(`시작 실패: ${e.message}`, 'error');
-            return false;
-        }
+            // 타임아웃
+            setTimeout(() => {
+                if (this.sttSocket?.readyState === WebSocket.CONNECTING) {
+                    this.sttSocket.close();
+                    reject(new Error('연결 타임아웃'));
+                }
+            }, 10000);
+        });
     },
 
-    handleSpeechResult(event) {
-        let interimTranscript = '';
-        let finalTranscript = '';
+    handleSTTResult(data) {
+        if (data.type === 'Results') {
+            const channel = data.channel;
+            if (!channel?.alternatives?.[0]) return;
 
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                finalTranscript += transcript;
-            } else {
-                interimTranscript += transcript;
+            const transcript = channel.alternatives[0].transcript;
+            if (!transcript) return;
+
+            const isFinal = data.is_final;
+
+            // 자막 표시
+            this.showCaption(transcript, isFinal);
+
+            if (isFinal && transcript.trim()) {
+                this.addToHistory(transcript);
             }
-        }
 
-        if (interimTranscript) {
-            this.showCaption(interimTranscript, false);
-        }
-
-        if (finalTranscript) {
-            this.showCaption(finalTranscript, true);
-            this.addToHistory(finalTranscript);
+            console.log(`[Captions] ${isFinal ? '✓' : '...'} ${transcript}`);
         }
     },
 
-    // 자막 시작 (자동 모드 선택)
-    async start() {
-        if (this.isActive) return;
-
-        // Extension 모드 우선 시도
-        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-            const success = await this.startWithExtension();
-            if (success) return;
+    float32ToInt16(float32Array) {
+        const int16Array = new Int16Array(float32Array.length);
+        for (let i = 0; i < float32Array.length; i++) {
+            const s = Math.max(-1, Math.min(1, float32Array[i]));
+            int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
-
-        // Fallback: Standalone 모드
-        await this.startStandalone();
+        return int16Array;
     },
 
-    // 자막 중지
     stop() {
-        if (!this.isActive) return;
-
-        if (this.mode === 'extension') {
-            this.stopWithExtension();
-        } else {
-            this.isListening = false;
-            if (this.recognition) {
-                try { this.recognition.stop(); } catch (e) { }
-                this.recognition = null;
-            }
-        }
+        if (!this.isActive && !this.isConnecting) return;
 
         this.isActive = false;
+        this.isConnecting = false;
+        this.cleanup();
+
         this.captionContainer?.classList.remove('active');
         this.updateStatus(null);
         this.clearCaption();
+
         console.log('[Captions] Stopped');
+    },
+
+    cleanup() {
+        // WebSocket 종료
+        if (this.sttSocket) {
+            if (this.sttSocket.readyState === WebSocket.OPEN) {
+                this.sttSocket.send(JSON.stringify({ type: 'CloseStream' }));
+            }
+            this.sttSocket.close();
+            this.sttSocket = null;
+        }
+
+        // Processor 연결 해제
+        if (this.processorNode) {
+            try {
+                this.processorNode.disconnect();
+            } catch (e) { }
+            this.processorNode = null;
+        }
+
+        // Source 연결 해제
+        if (this.sourceNode) {
+            try {
+                this.sourceNode.disconnect();
+            } catch (e) { }
+            this.sourceNode = null;
+        }
+
+        // AudioContext 닫기
+        if (this.audioContext) {
+            try {
+                this.audioContext.close();
+            } catch (e) { }
+            this.audioContext = null;
+        }
     },
 
     toggle() {
@@ -297,15 +314,158 @@ export const Captions = {
         }
     },
 
-    // 언어 변경
-    setLanguage(lang) {
-        this.language = lang;
-        this.saveSettings();
+    // API 키 입력 프롬프트
+    promptApiKey() {
+        const savedKey = localStorage.getItem('deepgramApiKey') || '';
 
-        if (this.isActive && this.mode === 'standalone') {
-            this.stop();
-            setTimeout(() => this.start(), 300);
-        }
+        const dialog = document.createElement('div');
+        dialog.id = 'caption-api-dialog';
+        dialog.innerHTML = `
+            <div class="caption-api-content">
+                <h3>🎤 Deepgram API 키 설정</h3>
+                <p>실시간 자막을 사용하려면 Deepgram API 키가 필요합니다.</p>
+                <p class="caption-api-hint">
+                    <a href="https://deepgram.com" target="_blank">deepgram.com</a>에서
+                    무료로 API 키를 발급받을 수 있습니다. ($200 무료 크레딧)
+                </p>
+                <input type="password" id="caption-api-input" placeholder="API 키 입력" value="${savedKey}" />
+                <div class="caption-api-buttons">
+                    <button class="cancel">취소</button>
+                    <button class="confirm">저장 및 시작</button>
+                </div>
+            </div>
+        `;
+
+        // 스타일
+        const style = document.createElement('style');
+        style.textContent = `
+            #caption-api-dialog {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.85);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10001;
+                animation: fadeIn 0.2s ease;
+            }
+            .caption-api-content {
+                background: linear-gradient(180deg, rgba(35, 35, 50, 0.98), rgba(25, 25, 40, 0.98));
+                border-radius: 16px;
+                padding: 28px;
+                max-width: 420px;
+                width: 90%;
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            }
+            .caption-api-content h3 {
+                margin: 0 0 12px;
+                font-size: 18px;
+            }
+            .caption-api-content p {
+                margin: 0 0 8px;
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.8);
+            }
+            .caption-api-hint {
+                font-size: 12px !important;
+                color: rgba(255, 255, 255, 0.5) !important;
+                margin-bottom: 16px !important;
+            }
+            .caption-api-hint a {
+                color: #a855f7;
+                text-decoration: none;
+            }
+            .caption-api-hint a:hover {
+                text-decoration: underline;
+            }
+            #caption-api-input {
+                width: 100%;
+                padding: 14px 16px;
+                margin: 8px 0 20px;
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 10px;
+                color: white;
+                font-size: 14px;
+                outline: none;
+                transition: border-color 0.2s;
+                box-sizing: border-box;
+            }
+            #caption-api-input:focus {
+                border-color: #a855f7;
+            }
+            .caption-api-buttons {
+                display: flex;
+                gap: 12px;
+            }
+            .caption-api-buttons button {
+                flex: 1;
+                padding: 14px;
+                border: none;
+                border-radius: 10px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+            }
+            .caption-api-buttons .confirm {
+                background: linear-gradient(135deg, #a855f7, #6366f1);
+                color: white;
+            }
+            .caption-api-buttons .confirm:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+            }
+            .caption-api-buttons .cancel {
+                background: rgba(255, 255, 255, 0.1);
+                color: white;
+            }
+            .caption-api-buttons .cancel:hover {
+                background: rgba(255, 255, 255, 0.15);
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+        `;
+
+        document.head.appendChild(style);
+        document.body.appendChild(dialog);
+
+        const input = dialog.querySelector('#caption-api-input');
+        input.focus();
+
+        dialog.querySelector('.cancel').onclick = () => {
+            dialog.remove();
+            style.remove();
+            this.captionContainer?.classList.remove('active');
+        };
+
+        dialog.querySelector('.confirm').onclick = () => {
+            const key = input.value.trim();
+            if (key) {
+                this.apiKey = key;
+                localStorage.setItem('deepgramApiKey', key);
+                dialog.remove();
+                style.remove();
+                this.start();
+            } else {
+                input.style.borderColor = '#ef4444';
+                input.focus();
+            }
+        };
+
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') dialog.querySelector('.confirm').click();
+            if (e.key === 'Escape') dialog.querySelector('.cancel').click();
+        };
+
+        // 외부 클릭 시 닫기
+        dialog.onclick = (e) => {
+            if (e.target === dialog) dialog.querySelector('.cancel').click();
+        };
     },
 
     // UI Methods
@@ -371,6 +531,7 @@ export const Captions = {
             this.captionContainer.classList.remove('font-small', 'font-medium', 'font-large');
             this.captionContainer.classList.add(`font-${size}`);
         }
+        this.saveSettings();
     },
 
     setBgOpacity(opacity) {
@@ -378,6 +539,18 @@ export const Captions = {
         const wrapper = this.captionContainer?.querySelector('.caption-text-wrapper');
         if (wrapper) {
             wrapper.style.setProperty('--caption-bg-opacity', opacity);
+        }
+        this.saveSettings();
+    },
+
+    setLanguage(lang) {
+        this.language = lang;
+        this.saveSettings();
+
+        // 실행 중이면 재시작
+        if (this.isActive) {
+            this.stop();
+            setTimeout(() => this.start(), 500);
         }
     },
 
@@ -389,8 +562,9 @@ export const Captions = {
                 this.fontSize = settings.fontSize || 'medium';
                 this.position = settings.position || 'bottom';
                 this.bgOpacity = settings.bgOpacity || 0.85;
-                this.language = settings.language || 'ko-KR';
+                this.language = settings.language || 'ko';
             }
+            this.apiKey = localStorage.getItem('deepgramApiKey') || '';
         } catch (e) { }
     },
 
@@ -409,7 +583,7 @@ export const Captions = {
         if (existing) existing.remove();
 
         const notification = document.createElement('div');
-        notification.className = `caption-notification`;
+        notification.className = 'caption-notification';
         notification.textContent = message;
         notification.style.cssText = `
             position: fixed;
@@ -424,6 +598,7 @@ export const Captions = {
             z-index: 10000;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            animation: fadeIn 0.2s ease;
         `;
 
         document.body.appendChild(notification);
@@ -432,6 +607,6 @@ export const Captions = {
             notification.style.opacity = '0';
             notification.style.transition = 'opacity 0.3s ease';
             setTimeout(() => notification.remove(), 300);
-        }, 3000);
+        }, 4000);
     }
 };
