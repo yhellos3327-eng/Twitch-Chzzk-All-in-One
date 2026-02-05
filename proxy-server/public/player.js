@@ -281,23 +281,8 @@ function setupControls() {
         if (document.fullscreenElement) document.exitFullscreen();
         else document.getElementById('player-container').requestFullscreen();
     });
-    const pipBtn = elements.pipBtn();
-    if (pipBtn) pipBtn.addEventListener('click', async () => {
-        try {
-            // PIP 모드 진입
-            if (!document.pictureInPictureElement) {
-                await video.requestPictureInPicture();
-                // PIP 진입 후 Twitch 페이지 열기
-                if (currentChannel) {
-                    window.open(`https://www.twitch.tv/${currentChannel}`, '_blank');
-                }
-            } else {
-                await document.exitPictureInPicture();
-            }
-        } catch (e) {
-            console.error('[PIP] Error:', e);
-        }
-    });
+    // PIP는 MultiView 모듈에서 관리
+    // pipBtn 이벤트는 multiview.js의 setupEventListeners에서 설정됨
 
     // Chat Toggles
     const toggleChat = elements.toggleChatBtn();
