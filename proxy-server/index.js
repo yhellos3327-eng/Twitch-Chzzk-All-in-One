@@ -418,6 +418,7 @@ const wss = new WebSocket.Server({ server, path: '/deepgram' });
 wss.on('connection', (clientWs, req) => {
   const parsedUrl = url.parse(req.url, true);
   const apiKey = parsedUrl.query.apiKey;
+  // params는 이미 URL 인코딩 해제됨 (url.parse의 true 옵션)
   const params = parsedUrl.query.params || '';
 
   if (!apiKey) {
@@ -426,9 +427,12 @@ wss.on('connection', (clientWs, req) => {
   }
 
   console.log('[Deepgram Proxy] Client connected');
+  console.log('[Deepgram Proxy] Params:', params);
 
   // Deepgram WebSocket 연결
   const deepgramUrl = `wss://api.deepgram.com/v1/listen?${params}`;
+  console.log('[Deepgram Proxy] URL:', deepgramUrl);
+
   const deepgramWs = new WebSocket(deepgramUrl, {
     headers: {
       'Authorization': `Token ${apiKey}`
@@ -448,9 +452,25 @@ wss.on('connection', (clientWs, req) => {
 
   deepgramWs.on('error', (error) => {
     console.error('[Deepgram Proxy] Deepgram error:', error.message);
+    console.error('[Deepgram Proxy] Error details:', error);
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(JSON.stringify({ type: 'error', error: error.message }));
     }
+  });
+
+  deepgramWs.on('unexpected-response', (request, response) => {
+    console.error('[Deepgram Proxy] Unexpected response:', response.statusCode, response.statusMessage);
+    let body = '';
+    response.on('data', (chunk) => body += chunk);
+    response.on('end', () => {
+      console.error('[Deepgram Proxy] Response body:', body);
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(JSON.stringify({
+          type: 'error',
+          error: `Deepgram responded with ${response.statusCode}: ${body || response.statusMessage}`
+        }));
+      }
+    });
   });
 
   deepgramWs.on('close', (code, reason) => {
