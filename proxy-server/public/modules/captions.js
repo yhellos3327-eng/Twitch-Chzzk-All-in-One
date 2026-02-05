@@ -1,14 +1,37 @@
 // AI Captions Module - Whisper.js 기반 실시간 음성 인식
-// 비디오 오디오 추출 → Whisper tiny 모델로 음성 인식
+// 비디오 오디오 추출 → Whisper 모델로 음성 인식
 // 
 // Transformers.js 사용 - 브라우저에서 로컬 실행
-// 모델: whisper-tiny (~40MB, 첫 로딩 후 캐시됨)
+// 모델 선택 가능: tiny (~40MB), base (~75MB), small (~250MB)
 
 export const Captions = {
     // Whisper 관련
     pipeline: null,
     isModelLoading: false,
     isModelLoaded: false,
+    currentModel: 'whisper-tiny', // 현재 선택된 모델
+
+    // 사용 가능한 모델 목록
+    models: {
+        'whisper-tiny': {
+            name: 'Tiny',
+            size: '~40MB',
+            accuracy: '보통',
+            id: 'Xenova/whisper-tiny'
+        },
+        'whisper-base': {
+            name: 'Base',
+            size: '~75MB',
+            accuracy: '좋음',
+            id: 'Xenova/whisper-base'
+        },
+        'whisper-small': {
+            name: 'Small',
+            size: '~250MB',
+            accuracy: '매우 좋음',
+            id: 'Xenova/whisper-small'
+        }
+    },
 
     // 상태
     isActive: false,
@@ -68,6 +91,7 @@ export const Captions = {
             </div>
             <div class="caption-status">
                 <span class="caption-lang"></span>
+                <span class="caption-model"></span>
                 <span class="caption-listening"></span>
             </div>
         `;
@@ -76,13 +100,190 @@ export const Captions = {
         this.updatePosition();
     },
 
+    // 모델 선택 다이얼로그 표시
+    showModelSelector() {
+        return new Promise((resolve) => {
+            const existing = document.querySelector('.caption-model-dialog');
+            if (existing) existing.remove();
+
+            const dialog = document.createElement('div');
+            dialog.className = 'caption-model-dialog';
+            dialog.innerHTML = `
+                <div class="caption-model-content">
+                    <h3>🤖 AI 모델 선택</h3>
+                    <p>정확도가 높을수록 용량이 큽니다.</p>
+                    <div class="caption-model-list">
+                        ${Object.entries(this.models).map(([key, model]) => `
+                            <button class="caption-model-item ${key === this.currentModel ? 'active' : ''}" data-model="${key}">
+                                <div class="model-name">${model.name}</div>
+                                <div class="model-info">
+                                    <span class="model-size">${model.size}</span>
+                                    <span class="model-accuracy">정확도: ${model.accuracy}</span>
+                                </div>
+                            </button>
+                        `).join('')}
+                    </div>
+                    <button class="caption-model-cancel">취소</button>
+                </div>
+            `;
+
+            // 스타일 추가
+            if (!document.getElementById('caption-model-styles')) {
+                const style = document.createElement('style');
+                style.id = 'caption-model-styles';
+                style.textContent = `
+                    .caption-model-dialog {
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(0, 0, 0, 0.8);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 10000;
+                        opacity: 0;
+                        transition: opacity 0.3s;
+                    }
+                    .caption-model-dialog.show { opacity: 1; }
+                    .caption-model-content {
+                        background: linear-gradient(180deg, rgba(30, 30, 40, 0.98), rgba(20, 20, 30, 0.98));
+                        border-radius: 20px;
+                        padding: 24px;
+                        max-width: 400px;
+                        width: 90%;
+                        backdrop-filter: blur(20px);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                    }
+                    .caption-model-content h3 {
+                        margin: 0 0 8px;
+                        font-size: 18px;
+                        color: white;
+                    }
+                    .caption-model-content p {
+                        margin: 0 0 16px;
+                        font-size: 13px;
+                        color: rgba(255,255,255,0.6);
+                    }
+                    .caption-model-list {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                        margin-bottom: 16px;
+                    }
+                    .caption-model-item {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 6px;
+                        padding: 14px 16px;
+                        background: rgba(255,255,255,0.05);
+                        border: 1px solid rgba(255,255,255,0.1);
+                        border-radius: 12px;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        color: white;
+                        text-align: left;
+                        width: 100%;
+                    }
+                    .caption-model-item:hover {
+                        background: rgba(255,255,255,0.1);
+                        border-color: rgba(255,255,255,0.2);
+                    }
+                    .caption-model-item.active {
+                        background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(6, 182, 212, 0.3));
+                        border-color: rgba(139, 92, 246, 0.5);
+                    }
+                    .model-name {
+                        font-size: 16px;
+                        font-weight: 600;
+                    }
+                    .model-info {
+                        display: flex;
+                        gap: 12px;
+                        font-size: 12px;
+                        color: rgba(255,255,255,0.5);
+                    }
+                    .caption-model-cancel {
+                        width: 100%;
+                        padding: 12px;
+                        background: transparent;
+                        border: 1px solid rgba(255,255,255,0.1);
+                        border-radius: 10px;
+                        color: rgba(255,255,255,0.6);
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .caption-model-cancel:hover {
+                        background: rgba(255,255,255,0.05);
+                        color: white;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            document.body.appendChild(dialog);
+            requestAnimationFrame(() => dialog.classList.add('show'));
+
+            // 이벤트
+            dialog.querySelectorAll('.caption-model-item').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const model = btn.dataset.model;
+                    dialog.classList.remove('show');
+                    setTimeout(() => dialog.remove(), 300);
+                    resolve(model);
+                });
+            });
+
+            dialog.querySelector('.caption-model-cancel').addEventListener('click', () => {
+                dialog.classList.remove('show');
+                setTimeout(() => dialog.remove(), 300);
+                resolve(null);
+            });
+
+            dialog.addEventListener('click', (e) => {
+                if (e.target === dialog) {
+                    dialog.classList.remove('show');
+                    setTimeout(() => dialog.remove(), 300);
+                    resolve(null);
+                }
+            });
+        });
+    },
+
+    // 모델 변경
+    async setModel(modelKey) {
+        if (!this.models[modelKey]) return;
+
+        const needReload = this.isModelLoaded && modelKey !== this.currentModel;
+        this.currentModel = modelKey;
+        this.saveSettings();
+
+        if (needReload) {
+            // 기존 파이프라인 정리
+            this.pipeline = null;
+            this.isModelLoaded = false;
+            this.showNotification(`모델 변경: ${this.models[modelKey].name}`, 'info');
+        }
+
+        this.updateModelDisplay();
+    },
+
+    updateModelDisplay() {
+        const modelEl = this.captionContainer?.querySelector('.caption-model');
+        if (modelEl) {
+            const model = this.models[this.currentModel];
+            modelEl.textContent = model ? `[${model.name}]` : '';
+        }
+    },
+
     // Whisper 모델 로드
     async loadWhisperModel() {
         if (this.isModelLoaded || this.isModelLoading) return;
 
         this.isModelLoading = true;
         this.updateStatus('loading');
-        this.showNotification('AI 모델 로딩 중... (최초 1회, ~40MB)', 'info');
+
+        const model = this.models[this.currentModel];
+        this.showNotification(`AI 모델 로딩 중... (${model.name}, ${model.size})`, 'info');
 
         try {
             // Transformers.js 동적 로드
@@ -92,10 +293,10 @@ export const Captions = {
 
             const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
 
-            // Whisper tiny 모델 로드 (가장 가벼움)
+            // 선택된 Whisper 모델 로드
             this.pipeline = await pipeline(
                 'automatic-speech-recognition',
-                'Xenova/whisper-tiny',
+                model.id,
                 {
                     progress_callback: (progress) => {
                         if (progress.status === 'downloading') {
@@ -108,8 +309,8 @@ export const Captions = {
 
             this.isModelLoaded = true;
             this.isModelLoading = false;
-            this.showNotification('AI 모델 로드 완료!', 'success');
-            console.log('[Captions] Whisper model loaded');
+            this.showNotification(`AI 모델 로드 완료! (${model.name})`, 'success');
+            console.log('[Captions] Whisper model loaded:', model.id);
 
         } catch (e) {
             console.error('[Captions] Model load failed:', e);
@@ -118,6 +319,7 @@ export const Captions = {
             throw e;
         }
     },
+
 
     loadScript(url) {
         return new Promise((resolve, reject) => {
@@ -300,8 +502,14 @@ export const Captions = {
         if (this.isActive) return;
 
         try {
-            // 모델 로드 (최초 1회)
+            // 모델이 로드되지 않았으면 모델 선택 다이얼로그 표시
             if (!this.isModelLoaded) {
+                const selectedModel = await this.showModelSelector();
+                if (!selectedModel) {
+                    this.showNotification('자막 취소됨', 'info');
+                    return;
+                }
+                await this.setModel(selectedModel);
                 await this.loadWhisperModel();
             }
 
@@ -316,8 +524,11 @@ export const Captions = {
 
             this.captionContainer.classList.add('active');
             this.updateLangDisplay();
+            this.updateModelDisplay();
             this.updateStatus('듣는 중...');
-            this.showNotification('자막 활성화 (Whisper AI)', 'success');
+
+            const model = this.models[this.currentModel];
+            this.showNotification(`자막 활성화 (${model.name})`, 'success');
 
         } catch (e) {
             console.error('[Captions] Start failed:', e);
@@ -499,6 +710,7 @@ export const Captions = {
                 this.fontSize = settings.fontSize || 'medium';
                 this.position = settings.position || 'bottom';
                 this.bgOpacity = settings.bgOpacity || 0.7;
+                this.currentModel = settings.currentModel || 'whisper-tiny';
 
                 this.setFontSize(this.fontSize);
                 this.setBgOpacity(this.bgOpacity);
@@ -516,7 +728,8 @@ export const Captions = {
                 translateEnabled: this.translateEnabled,
                 fontSize: this.fontSize,
                 position: this.position,
-                bgOpacity: this.bgOpacity
+                bgOpacity: this.bgOpacity,
+                currentModel: this.currentModel
             }));
         } catch (e) {
             console.error('[Captions] Save settings error:', e);
