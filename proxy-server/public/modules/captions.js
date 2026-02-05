@@ -1,24 +1,29 @@
-// AI Captions Module - 실시간 음성 인식 + 번역 자막
-// 비디오 스트림 오디오 캡처 → 음성 인식
-//
-// 방식 1: Web Speech API + 탭 오디오 캡처 (getDisplayMedia)
-// 방식 2: 비디오 요소에서 직접 오디오 추출 → Web Audio API → 분석
-//
-// 참고: Web Speech API는 마이크만 지원하므로,
-// 탭 오디오를 가상 마이크로 라우팅하거나 별도 ASR 사용 필요
+// AI Captions Module - Whisper.js 기반 실시간 음성 인식
+// 비디오 오디오 추출 → Whisper tiny 모델로 음성 인식
+// 
+// Transformers.js 사용 - 브라우저에서 로컬 실행
+// 모델: whisper-tiny (~40MB, 첫 로딩 후 캐시됨)
 
 export const Captions = {
-    recognition: null,
+    // Whisper 관련
+    pipeline: null,
+    isModelLoading: false,
+    isModelLoaded: false,
+
+    // 상태
     isActive: false,
-    currentLanguage: 'ko-KR', // 인식 언어
-    targetLanguage: 'en',     // 번역 대상 언어
+    isProcessing: false,
+    currentLanguage: 'ko', // 인식 언어 (ko, en, ja, zh 등)
+    targetLanguage: 'en',  // 번역 대상 언어
     translateEnabled: false,
 
     // 오디오 캡처 관련
     audioContext: null,
     mediaStream: null,
     videoElement: null,
-    captureMode: 'tab', // 'tab' (탭 오디오) 또는 'mic' (마이크)
+    audioRecorder: null,
+    recordingInterval: null,
+    chunkDuration: 5000, // 5초마다 인식
 
     // 자막 표시 관련
     captionContainer: null,
@@ -26,26 +31,26 @@ export const Captions = {
     maxHistoryLines: 3,
 
     // 설정
-    fontSize: 'medium', // small, medium, large
-    position: 'bottom', // top, bottom
+    fontSize: 'medium',
+    position: 'bottom',
     bgOpacity: 0.7,
 
-    // 지원 언어 목록
+    // 지원 언어
     languages: {
-        'ko-KR': { name: '한국어', flag: '🇰🇷' },
-        'en-US': { name: 'English', flag: '🇺🇸' },
-        'ja-JP': { name: '日本語', flag: '🇯🇵' },
-        'zh-CN': { name: '中文', flag: '🇨🇳' },
-        'es-ES': { name: 'Español', flag: '🇪🇸' },
-        'fr-FR': { name: 'Français', flag: '🇫🇷' },
-        'de-DE': { name: 'Deutsch', flag: '🇩🇪' },
-        'pt-BR': { name: 'Português', flag: '🇧🇷' },
-        'ru-RU': { name: 'Русский', flag: '🇷🇺' },
-        'vi-VN': { name: 'Tiếng Việt', flag: '🇻🇳' }
+        'ko': { name: '한국어', flag: '🇰🇷' },
+        'en': { name: 'English', flag: '🇺🇸' },
+        'ja': { name: '日本語', flag: '🇯🇵' },
+        'zh': { name: '中文', flag: '🇨🇳' },
+        'es': { name: 'Español', flag: '🇪🇸' },
+        'fr': { name: 'Français', flag: '🇫🇷' },
+        'de': { name: 'Deutsch', flag: '🇩🇪' },
+        'pt': { name: 'Português', flag: '🇧🇷' },
+        'ru': { name: 'Русский', flag: '🇷🇺' },
+        'vi': { name: 'Tiếng Việt', flag: '🇻🇳' }
     },
 
     init(videoEl = null) {
-        this.videoElement = videoEl;
+        this.videoElement = videoEl || document.getElementById('video-player');
         this.createCaptionUI();
         this.loadSettings();
         console.log('[Captions] Initialized');
@@ -53,7 +58,6 @@ export const Captions = {
     },
 
     createCaptionUI() {
-        // 자막 컨테이너
         this.captionContainer = document.createElement('div');
         this.captionContainer.id = 'caption-container';
         this.captionContainer.className = 'caption-container';
@@ -72,103 +76,84 @@ export const Captions = {
         this.updatePosition();
     },
 
-    setupRecognition() {
-        // Web Speech API 지원 확인
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            console.warn('[Captions] Speech Recognition not supported');
-            return false;
-        }
+    // Whisper 모델 로드
+    async loadWhisperModel() {
+        if (this.isModelLoaded || this.isModelLoading) return;
 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        this.recognition = new SpeechRecognition();
+        this.isModelLoading = true;
+        this.updateStatus('loading');
+        this.showNotification('AI 모델 로딩 중... (최초 1회, ~40MB)', 'info');
 
-        this.recognition.continuous = true;
-        this.recognition.interimResults = true;
-        this.recognition.lang = this.currentLanguage;
-        this.recognition.maxAlternatives = 1;
-
-        this.recognition.onstart = () => {
-            console.log('[Captions] Recognition started');
-            this.updateStatus('listening');
-        };
-
-        this.recognition.onresult = async (event) => {
-            let interimTranscript = '';
-            let finalTranscript = '';
-
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalTranscript += transcript;
-                } else {
-                    interimTranscript += transcript;
-                }
+        try {
+            // Transformers.js 동적 로드
+            if (!window.Transformers) {
+                await this.loadScript('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
             }
 
-            // 중간 결과 표시
-            if (interimTranscript) {
-                this.showCaption(interimTranscript, false);
-            }
+            const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
 
-            // 최종 결과 처리
-            if (finalTranscript) {
-                let displayText = finalTranscript;
-
-                // 번역 활성화시 번역
-                if (this.translateEnabled && this.targetLanguage !== this.currentLanguage.split('-')[0]) {
-                    displayText = await this.translateText(finalTranscript);
-                }
-
-                this.showCaption(displayText, true);
-                this.addToHistory(displayText);
-            }
-        };
-
-        this.recognition.onerror = (event) => {
-            console.error('[Captions] Recognition error:', event.error);
-
-            if (event.error === 'no-speech') {
-                // 음성 없음 - 계속 시도
-                this.updateStatus('waiting');
-            } else if (event.error === 'audio-capture') {
-                this.showNotification('오디오 캡처 실패', 'error');
-                this.stop();
-            } else if (event.error === 'not-allowed') {
-                this.showNotification('오디오 접근이 차단되었습니다', 'error');
-                this.stop();
-            }
-        };
-
-        this.recognition.onend = () => {
-            console.log('[Captions] Recognition ended');
-            // 자동 재시작 (활성 상태인 경우)
-            if (this.isActive) {
-                setTimeout(() => {
-                    if (this.isActive) {
-                        try {
-                            this.recognition.start();
-                        } catch (e) {
-                            console.warn('[Captions] Restart failed:', e);
+            // Whisper tiny 모델 로드 (가장 가벼움)
+            this.pipeline = await pipeline(
+                'automatic-speech-recognition',
+                'Xenova/whisper-tiny',
+                {
+                    progress_callback: (progress) => {
+                        if (progress.status === 'downloading') {
+                            const percent = Math.round((progress.loaded / progress.total) * 100);
+                            this.updateStatus(`다운로드 ${percent}%`);
                         }
                     }
-                }, 100);
-            }
-        };
+                }
+            );
 
-        return true;
+            this.isModelLoaded = true;
+            this.isModelLoading = false;
+            this.showNotification('AI 모델 로드 완료!', 'success');
+            console.log('[Captions] Whisper model loaded');
+
+        } catch (e) {
+            console.error('[Captions] Model load failed:', e);
+            this.isModelLoading = false;
+            this.showNotification('모델 로드 실패', 'error');
+            throw e;
+        }
     },
 
-    // 탭 오디오 캡처 시작 (getDisplayMedia 사용)
-    async startTabAudioCapture() {
+    loadScript(url) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = url;
+            script.type = 'module';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    },
+
+    // 비디오에서 오디오 스트림 캡처
+    async captureVideoAudio() {
+        if (!this.videoElement) {
+            throw new Error('Video element not found');
+        }
+
         try {
-            // 탭 오디오 캡처를 위한 getDisplayMedia
-            // preferCurrentTab: true로 현재 탭 오디오만 캡처
+            // 비디오 요소에서 직접 스트림 캡처
+            if (this.videoElement.captureStream) {
+                const stream = this.videoElement.captureStream();
+                const audioTracks = stream.getAudioTracks();
+
+                if (audioTracks.length === 0) {
+                    throw new Error('No audio track in video');
+                }
+
+                this.mediaStream = new MediaStream(audioTracks);
+                console.log('[Captions] Video audio captured');
+                return true;
+            }
+
+            // 폴백: getDisplayMedia 사용
             this.mediaStream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    displaySurface: 'browser',
-                    width: 1,
-                    height: 1
-                },
+                video: { width: 1, height: 1 },
                 audio: {
                     echoCancellation: false,
                     noiseSuppression: false,
@@ -179,207 +164,192 @@ export const Captions = {
                 systemAudio: 'include'
             });
 
-            // 비디오 트랙 제거 (오디오만 필요)
+            // 비디오 트랙 제거
             const videoTrack = this.mediaStream.getVideoTracks()[0];
             if (videoTrack) {
                 videoTrack.stop();
                 this.mediaStream.removeTrack(videoTrack);
             }
 
-            // 오디오 트랙 확인
-            const audioTracks = this.mediaStream.getAudioTracks();
-            if (audioTracks.length === 0) {
-                throw new Error('No audio track captured');
-            }
-
-            console.log('[Captions] Tab audio captured:', audioTracks[0].label);
             return true;
 
         } catch (e) {
-            console.error('[Captions] Tab audio capture failed:', e);
-
+            console.error('[Captions] Audio capture failed:', e);
             if (e.name === 'NotAllowedError') {
-                this.showNotification('화면/오디오 공유가 취소되었습니다', 'error');
-            } else {
-                this.showNotification('탭 오디오 캡처 실패. 마이크 모드로 전환합니다.', 'warning');
-                this.captureMode = 'mic';
+                this.showNotification('오디오 접근이 거부되었습니다', 'error');
             }
             return false;
         }
     },
 
-    // 비디오 요소에서 직접 오디오 캡처 (AudioContext 사용)
-    async startVideoAudioCapture() {
-        if (!this.videoElement) {
-            console.error('[Captions] No video element');
-            return false;
-        }
+    // 오디오 녹음 및 인식 시작
+    startRecordingLoop() {
+        const audioChunks = [];
+
+        // MediaRecorder 설정
+        this.audioRecorder = new MediaRecorder(this.mediaStream, {
+            mimeType: 'audio/webm;codecs=opus'
+        });
+
+        this.audioRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+
+        this.audioRecorder.onstop = async () => {
+            if (audioChunks.length === 0 || !this.isActive) return;
+
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            audioChunks.length = 0; // 초기화
+
+            // 음성 인식 처리
+            await this.processAudio(audioBlob);
+
+            // 다음 녹음 시작
+            if (this.isActive && this.audioRecorder) {
+                this.audioRecorder.start();
+            }
+        };
+
+        // 첫 녹음 시작
+        this.audioRecorder.start();
+
+        // 주기적으로 녹음 중지하여 인식
+        this.recordingInterval = setInterval(() => {
+            if (this.audioRecorder && this.audioRecorder.state === 'recording' && !this.isProcessing) {
+                this.audioRecorder.stop();
+            }
+        }, this.chunkDuration);
+    },
+
+    // 오디오를 Whisper로 처리
+    async processAudio(audioBlob) {
+        if (!this.pipeline || this.isProcessing) return;
+
+        this.isProcessing = true;
+        this.updateStatus('인식 중...');
 
         try {
-            // AudioContext 생성
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            // Blob을 ArrayBuffer로 변환
+            const arrayBuffer = await audioBlob.arrayBuffer();
 
-            // 비디오에서 오디오 소스 생성
-            // 주의: 이미 AudioEnhancer에서 사용 중이면 충돌 가능
-            const source = this.audioContext.createMediaElementSource(this.videoElement);
+            // AudioContext로 디코딩
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-            // MediaStreamDestination으로 스트림 생성
-            const destination = this.audioContext.createMediaStreamDestination();
-            source.connect(destination);
-            source.connect(this.audioContext.destination); // 원래 출력도 유지
+            // 16kHz로 리샘플링 (Whisper 요구사항)
+            const targetSampleRate = 16000;
+            const audioData = this.resampleAudio(audioBuffer, targetSampleRate);
 
-            this.mediaStream = destination.stream;
+            // Whisper 인식
+            const result = await this.pipeline(audioData, {
+                language: this.currentLanguage,
+                task: 'transcribe',
+                chunk_length_s: 30,
+                stride_length_s: 5
+            });
 
-            console.log('[Captions] Video audio captured');
-            return true;
+            if (result && result.text && result.text.trim()) {
+                let displayText = result.text.trim();
+
+                // 번역 (활성화된 경우)
+                if (this.translateEnabled && this.targetLanguage !== this.currentLanguage) {
+                    displayText = await this.translateText(displayText);
+                }
+
+                this.showCaption(displayText, true);
+                this.addToHistory(displayText);
+            }
+
+            audioContext.close();
 
         } catch (e) {
-            console.error('[Captions] Video audio capture failed:', e);
-
-            if (e.message?.includes('already been connected')) {
-                this.showNotification('오디오가 이미 다른 곳에서 사용 중입니다', 'warning');
-            }
-            return false;
+            console.error('[Captions] Speech recognition failed:', e);
+        } finally {
+            this.isProcessing = false;
+            this.updateStatus('듣는 중...');
         }
+    },
+
+    // 오디오 리샘플링
+    resampleAudio(audioBuffer, targetSampleRate) {
+        const sourceSampleRate = audioBuffer.sampleRate;
+        const sourceData = audioBuffer.getChannelData(0); // 모노
+
+        if (sourceSampleRate === targetSampleRate) {
+            return sourceData;
+        }
+
+        const ratio = sourceSampleRate / targetSampleRate;
+        const newLength = Math.round(sourceData.length / ratio);
+        const result = new Float32Array(newLength);
+
+        for (let i = 0; i < newLength; i++) {
+            const srcIndex = i * ratio;
+            const srcIndexFloor = Math.floor(srcIndex);
+            const srcIndexCeil = Math.min(srcIndexFloor + 1, sourceData.length - 1);
+            const t = srcIndex - srcIndexFloor;
+            result[i] = sourceData[srcIndexFloor] * (1 - t) + sourceData[srcIndexCeil] * t;
+        }
+
+        return result;
     },
 
     async start() {
         if (this.isActive) return;
 
-        // 음성 인식 설정
-        if (!this.setupRecognition()) {
-            this.showNotification('음성 인식이 지원되지 않습니다', 'error');
-            return;
-        }
-
         try {
-            // 캡처 모드 선택 다이얼로그
-            const mode = await this.showCaptureDialog();
-
-            if (!mode) {
-                this.showNotification('자막 취소됨', 'info');
-                return;
+            // 모델 로드 (최초 1회)
+            if (!this.isModelLoaded) {
+                await this.loadWhisperModel();
             }
 
-            this.captureMode = mode;
+            // 비디오 오디오 캡처
+            this.showNotification('오디오 캡처 중...', 'info');
+            const success = await this.captureVideoAudio();
+            if (!success) return;
 
-            if (mode === 'tab') {
-                // 탭 오디오 캡처 시도
-                const success = await this.startTabAudioCapture();
-                if (!success) {
-                    return;
-                }
-            } else {
-                // 마이크 모드
-                await navigator.mediaDevices.getUserMedia({ audio: true });
-            }
-
-            // 음성 인식 시작
-            this.recognition.start();
+            // 녹음 및 인식 루프 시작
             this.isActive = true;
+            this.startRecordingLoop();
+
             this.captionContainer.classList.add('active');
             this.updateLangDisplay();
-
-            const modeText = mode === 'tab' ? '탭 오디오' : '마이크';
-            this.showNotification(`자막 활성화 (${modeText})`, 'success');
+            this.updateStatus('듣는 중...');
+            this.showNotification('자막 활성화 (Whisper AI)', 'success');
 
         } catch (e) {
             console.error('[Captions] Start failed:', e);
             this.showNotification('자막 시작 실패', 'error');
+            this.cleanup();
         }
-    },
-
-    // 캡처 모드 선택 다이얼로그
-    showCaptureDialog() {
-        return new Promise((resolve) => {
-            // 기존 다이얼로그 제거
-            const existing = document.querySelector('.caption-dialog');
-            if (existing) existing.remove();
-
-            const dialog = document.createElement('div');
-            dialog.className = 'caption-dialog';
-            dialog.innerHTML = `
-                <div class="caption-dialog-content">
-                    <h3>자막 오디오 소스 선택</h3>
-                    <p>어떤 오디오를 인식할까요?</p>
-                    <div class="caption-dialog-options">
-                        <button class="caption-dialog-btn" data-mode="tab">
-                            <svg viewBox="0 0 24 24" width="24" height="24">
-                                <path fill="currentColor" d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/>
-                                <path fill="currentColor" d="M9 8l7 4-7 4V8z"/>
-                            </svg>
-                            <span>스트림 오디오</span>
-                            <small>현재 탭의 소리를 인식</small>
-                        </button>
-                        <button class="caption-dialog-btn" data-mode="mic">
-                            <svg viewBox="0 0 24 24" width="24" height="24">
-                                <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                                <path fill="currentColor" d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                            </svg>
-                            <span>마이크</span>
-                            <small>내 음성을 인식</small>
-                        </button>
-                    </div>
-                    <button class="caption-dialog-cancel">취소</button>
-                </div>
-            `;
-
-            document.body.appendChild(dialog);
-
-            // 애니메이션
-            requestAnimationFrame(() => dialog.classList.add('show'));
-
-            // 이벤트 핸들러
-            dialog.querySelectorAll('.caption-dialog-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const mode = btn.dataset.mode;
-                    dialog.classList.remove('show');
-                    setTimeout(() => dialog.remove(), 300);
-                    resolve(mode);
-                });
-            });
-
-            dialog.querySelector('.caption-dialog-cancel').addEventListener('click', () => {
-                dialog.classList.remove('show');
-                setTimeout(() => dialog.remove(), 300);
-                resolve(null);
-            });
-
-            // 배경 클릭으로 닫기
-            dialog.addEventListener('click', (e) => {
-                if (e.target === dialog) {
-                    dialog.classList.remove('show');
-                    setTimeout(() => dialog.remove(), 300);
-                    resolve(null);
-                }
-            });
-        });
     },
 
     stop() {
         if (!this.isActive) return;
-
         this.isActive = false;
+        this.cleanup();
+        this.captionContainer.classList.remove('active');
+        this.clearCaption();
+        this.showNotification('자막 비활성화', 'info');
+    },
 
-        if (this.recognition) {
-            this.recognition.stop();
+    cleanup() {
+        if (this.recordingInterval) {
+            clearInterval(this.recordingInterval);
+            this.recordingInterval = null;
         }
 
-        // 미디어 스트림 정리
+        if (this.audioRecorder && this.audioRecorder.state !== 'inactive') {
+            this.audioRecorder.stop();
+        }
+        this.audioRecorder = null;
+
         if (this.mediaStream) {
             this.mediaStream.getTracks().forEach(track => track.stop());
             this.mediaStream = null;
         }
-
-        // AudioContext 정리
-        if (this.audioContext) {
-            this.audioContext.close();
-            this.audioContext = null;
-        }
-
-        this.captionContainer.classList.remove('active');
-        this.clearCaption();
-        this.showNotification('자막 비활성화', 'info');
     },
 
     toggle() {
@@ -419,20 +389,18 @@ export const Captions = {
                 .join('');
         }
 
-        // 현재 자막 클리어
         const current = this.captionContainer.querySelector('.caption-current');
         if (current) current.textContent = '';
     },
 
-    // 번역 기능 (무료 API 사용)
+    // 번역 (DeepL 또는 무료 API)
     async translateText(text) {
         try {
-            const sourceLang = this.currentLanguage.split('-')[0];
+            const sourceLang = this.currentLanguage;
             const targetLang = this.targetLanguage;
 
             // MyMemory Translation API (무료)
             const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`;
-
             const response = await fetch(url);
             const data = await response.json();
 
@@ -440,7 +408,7 @@ export const Captions = {
                 return data.responseData.translatedText;
             }
 
-            return text; // 번역 실패시 원문 반환
+            return text;
 
         } catch (e) {
             console.error('[Captions] Translation error:', e);
@@ -450,13 +418,9 @@ export const Captions = {
 
     setLanguage(langCode) {
         this.currentLanguage = langCode;
-        if (this.recognition) {
-            this.recognition.lang = langCode;
-        }
         this.updateLangDisplay();
         this.saveSettings();
 
-        // 재시작
         if (this.isActive) {
             this.stop();
             setTimeout(() => this.start(), 100);
@@ -466,7 +430,7 @@ export const Captions = {
     setTargetLanguage(langCode) {
         this.targetLanguage = langCode;
         this.saveSettings();
-        this.showNotification(`번역 언어: ${this.languages[langCode + '-' + langCode.toUpperCase()]?.name || langCode}`, 'info');
+        this.showNotification(`번역 언어: ${this.languages[langCode]?.name || langCode}`, 'info');
     },
 
     toggleTranslation() {
@@ -479,23 +443,17 @@ export const Captions = {
         const langEl = this.captionContainer.querySelector('.caption-lang');
         if (langEl) {
             const lang = this.languages[this.currentLanguage];
-            const modeIcon = this.captureMode === 'tab' ? '🔊' : '🎤';
-            langEl.textContent = lang ? `${modeIcon} ${lang.flag} ${lang.name}` : this.currentLanguage;
+            langEl.textContent = lang ? `🤖 ${lang.flag} ${lang.name}` : this.currentLanguage;
         }
     },
 
     updateStatus(status) {
         const statusEl = this.captionContainer.querySelector('.caption-listening');
         if (statusEl) {
-            switch (status) {
-                case 'listening':
-                    statusEl.innerHTML = '<span class="pulse-dot"></span> 듣는 중...';
-                    break;
-                case 'waiting':
-                    statusEl.textContent = '대기 중...';
-                    break;
-                default:
-                    statusEl.textContent = '';
+            if (status === '듣는 중...') {
+                statusEl.innerHTML = '<span class="pulse-dot"></span> ' + status;
+            } else {
+                statusEl.textContent = status;
             }
         }
     },
@@ -535,7 +493,7 @@ export const Captions = {
             const saved = localStorage.getItem('captionSettings');
             if (saved) {
                 const settings = JSON.parse(saved);
-                this.currentLanguage = settings.currentLanguage || 'ko-KR';
+                this.currentLanguage = settings.currentLanguage || 'ko';
                 this.targetLanguage = settings.targetLanguage || 'en';
                 this.translateEnabled = settings.translateEnabled || false;
                 this.fontSize = settings.fontSize || 'medium';
@@ -566,7 +524,6 @@ export const Captions = {
     },
 
     showNotification(message, type = 'info') {
-        // MediaTools의 알림 시스템 재사용
         const existing = document.querySelector('.media-notification');
         if (existing) existing.remove();
 
@@ -580,6 +537,6 @@ export const Captions = {
         setTimeout(() => {
             notification.classList.remove('show');
             setTimeout(() => notification.remove(), 300);
-        }, 2000);
+        }, 3000);
     }
 };
