@@ -64,10 +64,8 @@ export const Captions = {
                 throw new Error('VAD library (vad) not found. Check bundle.min.js loading.');
             }
 
-            // ONNX Runtime 환경 설정 (CDN에서 WASM 파일을 찾을 수 있도록 설정)
-            if (typeof ort !== 'undefined') {
-                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
-            }
+            // ONNX Runtime 환경 설정은 player.html에서 이미 설정됨 (v1.19.2)
+            // 여기서는 추가 설정이 필요 없음
 
             // AudioEnhancer를 통해 오디오 스트림 가져오기 (CORS 및 중복 연결 문제 해결)
             const stream = AudioEnhancer.getStream();
@@ -76,10 +74,9 @@ export const Captions = {
                 throw new Error('오디오 스트림을 가져올 수 없습니다. 비디오가 로드되었는지 확인해주세요.');
             }
 
-            // VAD 인스턴스 생성
-            this.myvad = await vad.MicVAD.new({
+            // VAD 인스턴스 생성 - CDN에서 모든 리소스 로드 (v0.0.19 호환)
+            const vadOptions = {
                 stream: stream,
-                modelURL: 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.29/dist/silero_vad.onnx',
                 onSpeechStart: () => {
                     this.showCaption('🎤 목소리 감지 중...', false);
                 },
@@ -89,7 +86,10 @@ export const Captions = {
                 onVADMisfire: () => {
                     this.showCaption('', false);
                 }
-            });
+            };
+
+            console.log('[Captions] Creating VAD with options');
+            this.myvad = await vad.MicVAD.new(vadOptions);
 
             this.myvad.start();
             this.isActive = true;
