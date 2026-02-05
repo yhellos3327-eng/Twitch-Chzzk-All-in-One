@@ -214,6 +214,95 @@ function setupHlsEvents(hlsInstance) {
     });
 }
 
+// 팝아웃 모드 전용 UI 설정
+function setupPopoutMode() {
+    console.log('[Player] Popout mode activated');
+
+    // body에 팝아웃 클래스 추가
+    document.body.classList.add('popout-mode');
+
+    // 팝아웃 모드에서 숨길 요소들
+    const hideElements = [
+        '#top-bar',           // 상단 정보 바
+        '.chat-container',    // 채팅
+        '#settings-btn',      // 설정 버튼
+        '#help-btn',          // 도움말 버튼
+        '#pip-btn',           // PIP 버튼 (이미 팝아웃 상태)
+        '.control-center',    // 미디어 도구 (타임머신, 스크린샷 등)
+        '#stats-btn',         // 통계 버튼
+        '#seekbar-container', // 시크바 (라이브는 불필요)
+    ];
+
+    hideElements.forEach(selector => {
+        const el = document.querySelector(selector);
+        if (el) el.style.display = 'none';
+    });
+
+    // 타이틀 변경
+    document.title = `Popout - ${currentChannel}`;
+
+    // 팝아웃 전용 스타일 주입
+    const style = document.createElement('style');
+    style.id = 'popout-styles';
+    style.textContent = `
+        body.popout-mode {
+            background: #000;
+            overflow: hidden;
+        }
+        
+        body.popout-mode #player-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        body.popout-mode .video-wrapper {
+            width: 100%;
+            height: 100%;
+        }
+        
+        body.popout-mode #video-player {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        body.popout-mode .control-bar {
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            padding: 12px 16px;
+        }
+        
+        body.popout-mode .control-left {
+            gap: 8px;
+        }
+        
+        body.popout-mode .control-right {
+            gap: 8px;
+        }
+        
+        /* 간단한 채널 표시 */
+        body.popout-mode::before {
+            content: '${currentChannel}';
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 6px;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        
+        body.popout-mode:hover::before {
+            opacity: 1;
+        }
+    `;
+    document.head.appendChild(style);
+}
 function setupControls() {
     video = elements.video();
 
@@ -692,11 +781,21 @@ function init() {
         return;
     }
 
+    // 팝아웃 모드 체크
+    const params = new URLSearchParams(window.location.search);
+    const isPopout = params.get('popout') === 'true';
+
+    if (isPopout) {
+        setupPopoutMode();
+    }
+
     setupControls();
 
-    // Enhancers need DOM to be ready
-    VideoEnhancer.init();
-    AudioEnhancer.init();
+    // Enhancers need DOM to be ready (팝아웃 모드에서는 일부 비활성화)
+    if (!isPopout) {
+        VideoEnhancer.init();
+        AudioEnhancer.init();
+    }
 
     // Initialize Captions with video element
     Captions.init(video);
