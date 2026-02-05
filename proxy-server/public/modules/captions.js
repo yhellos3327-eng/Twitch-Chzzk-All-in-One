@@ -267,8 +267,11 @@ export const Captions = {
     async connectSTT() {
         return new Promise((resolve, reject) => {
             // Deepgram 파라미터 설정
+            // 참고: https://developers.deepgram.com/reference/speech-to-text/listen-streaming
+            // Nova-3 모델 + language=multi로 다국어 자동 감지 지원
             const params = new URLSearchParams({
-                model: 'nova-2',
+                model: 'nova-3',           // Nova-3만 language=multi 지원
+                language: 'multi',         // 다국어 자동 감지
                 punctuate: 'true',
                 interim_results: 'true',
                 endpointing: '300',
@@ -277,13 +280,6 @@ export const Captions = {
                 sample_rate: '16000',
                 channels: '1'
             });
-
-            // 다국어 자동 감지
-            if (this.translateToKorean) {
-                params.set('detect_language', 'true');
-            } else {
-                params.set('language', this.sourceLanguage === 'multi' ? 'ko' : this.sourceLanguage);
-            }
 
             // 프록시 서버를 통해 Deepgram에 연결
             // (브라우저 WebSocket은 Authorization 헤더를 지원하지 않음)
