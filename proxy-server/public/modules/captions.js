@@ -100,7 +100,40 @@ export const Captions = {
         this.updatePosition();
     },
 
-    // 모델 선택 다이얼로그 표시
+    // 자막 위치 업데이트
+    updatePosition() {
+        if (!this.captionContainer) return;
+
+        // 기존 위치 클래스 제거
+        this.captionContainer.classList.remove('position-top', 'position-bottom');
+
+        // 새 위치 클래스 추가
+        this.captionContainer.classList.add(`position-${this.position}`);
+    },
+
+    // 상태 텍스트 업데이트
+    updateStatus(text) {
+        const listening = this.captionContainer?.querySelector('.caption-listening');
+        if (listening) {
+            if (text) {
+                listening.innerHTML = `<span class="pulse-dot"></span><span>${text}</span>`;
+            } else {
+                listening.innerHTML = '';
+            }
+        }
+    },
+
+    // 언어 표시 업데이트
+    updateLangDisplay() {
+        const langEl = this.captionContainer?.querySelector('.caption-lang');
+        if (langEl) {
+            const lang = this.languages[this.currentLanguage];
+            if (lang) {
+                langEl.textContent = `${lang.flag} ${lang.name}`;
+            }
+        }
+    },
+
     showModelSelector() {
         return new Promise((resolve) => {
             const existing = document.querySelector('.caption-model-dialog');
@@ -384,87 +417,95 @@ export const Captions = {
         }
     },
 
-    // 오디오 녹음 및 인식 시작
+    // 오디오 녹음 및 인식 시작 (Web Audio API 사용)
     startRecordingLoop() {
-        const audioChunks = [];
-
-        // MediaRecorder 설정
-        this.audioRecorder = new MediaRecorder(this.mediaStream, {
-            mimeType: 'audio/webm;codecs=opus'
+        // AudioContext 생성
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+            sampleRate: 16000 // Whisper가 요구하는 샘플레이트
         });
 
-        this.audioRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                audioChunks.push(event.data);
-            }
+        const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+
+        // 오디오 데이터 수집용 버퍼
+        this.audioBuffer = [];
+        this.bufferSize = 4096;
+
+        // ScriptProcessorNode (오디오 데이터 직접 접근)
+        // 참고: deprecated이지만 AudioWorklet보다 호환성이 좋음
+        this.scriptProcessor = this.audioContext.createScriptProcessor(this.bufferSize, 1, 1);
+
+        this.scriptProcessor.onaudioprocess = (event) => {
+            if (!this.isActive) return;
+
+            const inputData = event.inputBuffer.getChannelData(0);
+            // Float32Array를 복사해서 버퍼에 저장
+            this.audioBuffer.push(new Float32Array(inputData));
         };
 
-        this.audioRecorder.onstop = async () => {
-            if (audioChunks.length === 0 || !this.isActive) return;
+        source.connect(this.scriptProcessor);
+        this.scriptProcessor.connect(this.audioContext.destination);
 
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            audioChunks.length = 0; // 초기화
+        // 주기적으로 버퍼를 Whisper로 전송
+        this.recordingInterval = setInterval(async () => {
+            if (this.audioBuffer.length === 0 || this.isProcessing || !this.isActive) return;
+
+            // 버퍼를 하나의 Float32Array로 합치기
+            const totalLength = this.audioBuffer.reduce((acc, buf) => acc + buf.length, 0);
+            const audioData = new Float32Array(totalLength);
+            let offset = 0;
+
+            for (const buf of this.audioBuffer) {
+                audioData.set(buf, offset);
+                offset += buf.length;
+            }
+
+            // 버퍼 초기화
+            this.audioBuffer = [];
 
             // 음성 인식 처리
-            await this.processAudio(audioBlob);
+            await this.processAudioData(audioData);
 
-            // 다음 녹음 시작
-            if (this.isActive && this.audioRecorder) {
-                this.audioRecorder.start();
-            }
-        };
-
-        // 첫 녹음 시작
-        this.audioRecorder.start();
-
-        // 주기적으로 녹음 중지하여 인식
-        this.recordingInterval = setInterval(() => {
-            if (this.audioRecorder && this.audioRecorder.state === 'recording' && !this.isProcessing) {
-                this.audioRecorder.stop();
-            }
         }, this.chunkDuration);
     },
 
-    // 오디오를 Whisper로 처리
-    async processAudio(audioBlob) {
+    // Float32Array 오디오 데이터를 Whisper로 처리
+    async processAudioData(audioData) {
         if (!this.pipeline || this.isProcessing) return;
+
+        // 오디오가 너무 짧으면 무시
+        if (audioData.length < 8000) { // 0.5초 미만
+            return;
+        }
 
         this.isProcessing = true;
         this.updateStatus('인식 중...');
 
         try {
-            // Blob을 ArrayBuffer로 변환
-            const arrayBuffer = await audioBlob.arrayBuffer();
-
-            // AudioContext로 디코딩
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-            // 16kHz로 리샘플링 (Whisper 요구사항)
-            const targetSampleRate = 16000;
-            const audioData = this.resampleAudio(audioBuffer, targetSampleRate);
-
-            // Whisper 인식
+            // Whisper 인식 - Float32Array 직접 전달
             const result = await this.pipeline(audioData, {
                 language: this.currentLanguage,
                 task: 'transcribe',
                 chunk_length_s: 30,
-                stride_length_s: 5
+                stride_length_s: 5,
+                return_timestamps: false
             });
+
+            console.log('[Captions] Whisper result:', result);
 
             if (result && result.text && result.text.trim()) {
                 let displayText = result.text.trim();
 
-                // 번역 (활성화된 경우)
-                if (this.translateEnabled && this.targetLanguage !== this.currentLanguage) {
-                    displayText = await this.translateText(displayText);
+                // 노이즈/무의미한 텍스트 필터링
+                if (this.isValidCaption(displayText)) {
+                    // 번역 (활성화된 경우)
+                    if (this.translateEnabled && this.targetLanguage !== this.currentLanguage) {
+                        displayText = await this.translateText(displayText);
+                    }
+
+                    this.showCaption(displayText, true);
+                    this.addToHistory(displayText);
                 }
-
-                this.showCaption(displayText, true);
-                this.addToHistory(displayText);
             }
-
-            audioContext.close();
 
         } catch (e) {
             console.error('[Captions] Speech recognition failed:', e);
@@ -474,29 +515,48 @@ export const Captions = {
         }
     },
 
-    // 오디오 리샘플링
-    resampleAudio(audioBuffer, targetSampleRate) {
-        const sourceSampleRate = audioBuffer.sampleRate;
-        const sourceData = audioBuffer.getChannelData(0); // 모노
+    // 유효한 자막인지 확인 (노이즈 필터링)
+    isValidCaption(text) {
+        // 너무 짧은 텍스트 무시
+        if (text.length < 2) return false;
 
-        if (sourceSampleRate === targetSampleRate) {
-            return sourceData;
+        // 특수문자만 있는 경우 무시
+        if (/^[.!?,\s*\-_]+$/.test(text)) return false;
+
+        // Whisper가 종종 출력하는 노이즈 패턴
+        const noisePatterns = [
+            /^\.+$/,
+            /^\*+$/,
+            /^thanks? for watching/i,
+            /^please subscribe/i,
+            /^music$/i,
+            /^\[music\]$/i,
+            /^♪+$/,
+            /^you$/i,
+            /^yeah$/i,
+            /^okay$/i,
+            /^bye$/i
+        ];
+
+        for (const pattern of noisePatterns) {
+            if (pattern.test(text.trim())) return false;
         }
 
-        const ratio = sourceSampleRate / targetSampleRate;
-        const newLength = Math.round(sourceData.length / ratio);
-        const result = new Float32Array(newLength);
-
-        for (let i = 0; i < newLength; i++) {
-            const srcIndex = i * ratio;
-            const srcIndexFloor = Math.floor(srcIndex);
-            const srcIndexCeil = Math.min(srcIndexFloor + 1, sourceData.length - 1);
-            const t = srcIndex - srcIndexFloor;
-            result[i] = sourceData[srcIndexFloor] * (1 - t) + sourceData[srcIndexCeil] * t;
-        }
-
-        return result;
+        return true;
     },
+
+    // 더 이상 사용하지 않는 함수들 (호환성 유지)
+    async processAudio(audioBlob) {
+        // Legacy - processAudioData로 대체됨
+        console.warn('[Captions] processAudio is deprecated, use processAudioData');
+    },
+
+    resampleAudio(audioBuffer, targetSampleRate) {
+        // Web Audio API가 이미 16kHz로 처리하므로 더 이상 필요 없음
+        const sourceData = audioBuffer.getChannelData ? audioBuffer.getChannelData(0) : audioBuffer;
+        return sourceData;
+    },
+
 
     async start() {
         if (this.isActive) return;
@@ -552,6 +612,22 @@ export const Captions = {
             this.recordingInterval = null;
         }
 
+        // ScriptProcessor 정리
+        if (this.scriptProcessor) {
+            this.scriptProcessor.disconnect();
+            this.scriptProcessor = null;
+        }
+
+        // AudioContext 정리
+        if (this.audioContext && this.audioContext.state !== 'closed') {
+            this.audioContext.close();
+        }
+        this.audioContext = null;
+
+        // 오디오 버퍼 정리
+        this.audioBuffer = [];
+
+        // 레거시 audioRecorder 정리 (혹시 남아있는 경우)
         if (this.audioRecorder && this.audioRecorder.state !== 'inactive') {
             this.audioRecorder.stop();
         }

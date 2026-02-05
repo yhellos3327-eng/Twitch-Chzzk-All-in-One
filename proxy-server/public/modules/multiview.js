@@ -464,8 +464,32 @@ export const MultiView = {
         const pipMenu = document.getElementById('pip-menu');
 
         if (pipBtn && pipMenu) {
-            // 클릭 시 메뉴 토글
-            pipBtn.addEventListener('click', (e) => {
+            // 일반 클릭 → 바로 PIP 모드 활성화
+            pipBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+
+                // Shift+클릭이면 메뉴 표시
+                if (e.shiftKey) {
+                    pipMenu.classList.toggle('show');
+                    return;
+                }
+
+                // 바로 PIP 토글
+                try {
+                    if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                    } else if (this.videoElement && document.pictureInPictureEnabled) {
+                        await this.videoElement.requestPictureInPicture();
+                    }
+                } catch (e) {
+                    console.error('[MultiView] PIP failed:', e);
+                    this.showNotification('PIP 활성화 실패', 'error');
+                }
+            });
+
+            // 우클릭 → 메뉴 표시
+            pipBtn.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 pipMenu.classList.toggle('show');
             });

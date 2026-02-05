@@ -2030,7 +2030,10 @@ input[type=range].vertical-slider::-moz-range-thumb {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 25;
+  bottom: 100px;
+  /* 기본 위치 */
+  z-index: 100;
+  /* 컨트롤바 위에 표시 */
   pointer-events: none;
   display: none;
   max-width: 80%;
@@ -2134,4 +2137,48 @@ input[type=range].vertical-slider::-moz-range-thumb {
   color: rgba(255, 255, 255, 0.5);
   font-size: 14px;
   margin-bottom: 4px;
+}
+
+/* ========================================
+   Quality Menu - 화질 구분선
+   ======================================== */
+.quality-divider {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px 4px;
+  margin-top: 4px;
+}
+
+.quality-divider span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.quality-divider::before,
+.quality-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.quality-divider::before {
+  margin-right: 8px;
+}
+
+.quality-divider::after {
+  margin-left: 8px;
+}
+
+/* 오디오 전용 항목 스타일 */
+.quality-item.audio-only {
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+
+.quality-item.audio-only::before {
+  content: '🎵 ';
 }

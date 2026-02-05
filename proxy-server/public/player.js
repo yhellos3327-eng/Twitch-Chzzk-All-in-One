@@ -117,9 +117,23 @@ function updateQualityMenu() {
         }
     }
 
+    // 오디오 옵션 인덱스 찾기
+    const audioIndex = qualities.findIndex(q => {
+        const name = (q.name || '').toLowerCase();
+        return name.includes('audio');
+    });
+
     menu.innerHTML = qualities.map((q, i) => {
         const displayName = getQualityDisplayName(q);
-        return `<button class="quality-item ${i === currentQualityIndex ? 'active' : ''}" data-index="${i}">${displayName}</button>`;
+        const isAudio = (q.name || '').toLowerCase().includes('audio');
+
+        // 오디오 옵션 앞에 구분선 추가
+        let separator = '';
+        if (i === audioIndex && audioIndex > 0) {
+            separator = '<div class="quality-divider"><span>오디오</span></div>';
+        }
+
+        return `${separator}<button class="quality-item ${i === currentQualityIndex ? 'active' : ''} ${isAudio ? 'audio-only' : ''}" data-index="${i}">${displayName}</button>`;
     }).join('');
 
     // quality-btn 텍스트도 현재 화질로 업데이트
