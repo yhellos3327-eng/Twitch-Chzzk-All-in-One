@@ -15,14 +15,47 @@ function getChannelFromUrl() {
     return params.get('channel');
 }
 
+function getQualityDisplayName(quality) {
+    const name = quality.name?.toLowerCase() || '';
+
+    // 오디오 전용
+    if (name.includes('audio_only') || name.includes('audio only')) {
+        return 'Audio Only';
+    }
+
+    // 해상도가 있으면 해상도 기반으로 표시
+    if (quality.resolution) {
+        const height = quality.resolution.split('x')[1];
+        const fps = quality.fps ? Math.round(parseFloat(quality.fps)) : null;
+
+        if (height === '1080') return fps && fps >= 60 ? '1080p60' : '1080p';
+        if (height === '720') return fps && fps >= 60 ? '720p60' : '720p';
+        if (height === '480') return '480p';
+        if (height === '360') return '360p';
+        if (height === '160') return '160p';
+        return height + 'p';
+    }
+
+    // Source/원본
+    if (name.includes('source') || name.includes('chunked')) {
+        return '1080p (Source)';
+    }
+
+    // 이름에서 해상도 추출 시도
+    const resMatch = name.match(/(\d{3,4})p/i);
+    if (resMatch) {
+        return resMatch[1] + 'p';
+    }
+
+    return quality.name || 'Auto';
+}
+
 function updateQualityMenu() {
     const menu = elements.qualityMenu();
     if (!menu) return;
 
     menu.innerHTML = qualities.map((q, i) => {
-        let displayName = q.name;
-        if (displayName.includes('source') || displayName.includes('Source')) displayName = 'Source';
-        else if (q.resolution) displayName = q.resolution.split('x')[1] + 'p';
+        const displayName = getQualityDisplayName(q);
         return `<button class="quality-item ${i === currentQualityIndex ? 'active' : ''}" data-index="${i}">${displayName}</button>`;
     }).join('');
 
@@ -54,10 +87,7 @@ function changeQuality(index) {
 
     const badge = elements.qualityBadge();
     if (badge) {
-        let text = 'HD';
-        if (quality.name.toLowerCase().includes('source')) text = 'Source';
-        else if (quality.resolution) text = quality.resolution.split('x')[1] + 'p';
-        badge.textContent = text;
+        badge.textContent = getQualityDisplayName(quality);
         badge.style.display = 'inline-block';
     }
 }
@@ -148,9 +178,21 @@ function setupControls() {
         else document.getElementById('player-container').requestFullscreen();
     });
     const pipBtn = elements.pipBtn();
-    if (pipBtn) pipBtn.addEventListener('click', () => {
-        if (document.pictureInPictureElement) document.exitPictureInPicture();
-        else video.requestPictureInPicture();
+    if (pipBtn) pipBtn.addEventListener('click', async () => {
+        try {
+            // PIP 모드 진입
+            if (!document.pictureInPictureElement) {
+                await video.requestPictureInPicture();
+                // PIP 진입 후 Twitch 페이지 열기
+                if (currentChannel) {
+                    window.open(`https://www.twitch.tv/${currentChannel}`, '_blank');
+                }
+            } else {
+                await document.exitPictureInPicture();
+            }
+        } catch (e) {
+            console.error('[PIP] Error:', e);
+        }
     });
 
     // Chat Toggles
@@ -204,6 +246,25 @@ function setupControls() {
             }
         });
     });
+
+    // Profile & Channel Name -> Go to Twitch channel
+    const profileContainer = elements.profileContainer();
+    const channelNameEl = elements.channelName();
+
+    const goToChannel = () => {
+        if (currentChannel) {
+            window.open(`https://www.twitch.tv/${currentChannel}`, '_blank');
+        }
+    };
+
+    if (profileContainer) {
+        profileContainer.style.cursor = 'pointer';
+        profileContainer.addEventListener('click', goToChannel);
+    }
+    if (channelNameEl) {
+        channelNameEl.style.cursor = 'pointer';
+        channelNameEl.addEventListener('click', goToChannel);
+    }
 }
 
 async function startStream(channel) {

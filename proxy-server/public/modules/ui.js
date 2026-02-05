@@ -3,6 +3,7 @@ export const elements = {
 
     // Top Bar
     channelInfoGroup: () => document.querySelector('.channel-info-group'),
+    profileContainer: () => document.querySelector('.profile-container'),
     profileImage: () => document.getElementById('profile-image'),
     channelName: () => document.getElementById('channel-name'),
     streamTitle: () => document.getElementById('stream-title'),

@@ -112,14 +112,12 @@
                     </div>
                 </div>
                 
-                <div class="settings-item">
-                    <div style="display:flex;align-items:center;gap:8px;width:100%;">
-                        <label for="filter-mode-select" class="settings-label-row" style="flex:1;">필터 모드</label>
-                        <select id="filter-mode-select" class="settings-select">
-                            <option value="default">기본 (선명하게)</option>
-                            <option value="natural">자연스럽게 (색감+선명)</option>
-                        </select>
-                    </div>
+                <div class="settings-item column">
+                    <span class="settings-label-row">필터 모드</span>
+                    <select id="filter-mode-select" class="settings-select">
+                        <option value="default">기본 (선명)</option>
+                        <option value="natural">자연스럽게</option>
+                    </select>
                 </div>
 
                 <div class="settings-separator"></div>
@@ -200,6 +198,11 @@
                 </div>
 
                 <div class="eq-container">
+                    <div class="eq-scale">
+                        <span>+12</span>
+                        <span>0</span>
+                        <span>-12</span>
+                    </div>
                     <div class="eq-band">
                         <input type="range" class="vertical-slider eq-slider" data-freq="60" min="-12" max="12" value="0">
                         <span>60</span>

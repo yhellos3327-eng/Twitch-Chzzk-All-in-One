@@ -18,17 +18,28 @@
     }
   }
 
+  // 예외 경로 목록
+  const EXCLUDED_PATHS = [
+    'directory', 'videos', 'settings', 'subscriptions', 'inventory',
+    'drops', 'wallet', 'search', 'downloads', 'turbo', 'prime', 'bits',
+    'following', 'browse', 'category', 'game', 'all', 'tags', 'p', 'u'
+  ];
+
   // 채널명 추출 함수들
   function extractChannelFromHref(href) {
     if (!href) return null;
 
+    // 디렉토리/카테고리 링크 무시
+    if (href.includes('/directory/') || href.includes('/category/')) {
+      return null;
+    }
+
     // 상대 경로: /channelname 또는 /channelname?...
-    const relativeMatch = href.match(/^\/([a-zA-Z0-9_]+)(?:\?|$)/);
+    const relativeMatch = href.match(/^\/([a-zA-Z0-9_]+)(?:\?|\/|$)/);
     if (relativeMatch) {
       const name = relativeMatch[1].toLowerCase();
       // 예외 경로 제외
-      const excluded = ['directory', 'videos', 'settings', 'subscriptions', 'inventory', 'drops', 'wallet', 'search', 'downloads', 'turbo', 'prime', 'bits'];
-      if (!excluded.includes(name)) {
+      if (!EXCLUDED_PATHS.includes(name) && name.length > 1) {
         return name;
       }
     }
@@ -40,8 +51,7 @@
         const pathMatch = url.pathname.match(/^\/([a-zA-Z0-9_]+)(?:\/|$)/);
         if (pathMatch) {
           const name = pathMatch[1].toLowerCase();
-          const excluded = ['directory', 'videos', 'settings', 'subscriptions', 'inventory', 'drops', 'wallet', 'search', 'downloads', 'turbo', 'prime', 'bits'];
-          if (!excluded.includes(name)) {
+          if (!EXCLUDED_PATHS.includes(name) && name.length > 1) {
             return name;
           }
         }
@@ -135,28 +145,58 @@
 
     const target = event.target;
 
+    // 태그나 특정 UI 요소 클릭 시 무시 (먼저 체크)
+    if (target.closest('[class*="ScTagContent"]') ||
+      target.closest('[class*="tw-title"]') ||
+      target.closest('[class*="StreamTagButton"]') ||
+      target.closest('[data-a-target="preview-card-titles"]') ||
+      target.closest('[data-a-target="preview-card-channel-link"]')) {
+      console.log(LOG_PREFIX, 'Ignored click on title/tag');
+      return;
+    }
+
+    // 디렉토리 페이지의 Layout-sc-* 요소 (스트림 카드 컨테이너)
+    const layoutCard = target.closest('[class*="Layout-sc-"]');
+
     // 클릭된 요소가 스트림 카드인지 확인
     const streamCard = target.closest('.directory-first-item') ||
-      target.closest('[data-a-target="preview-card-channel-link"]') ||
       target.closest('[data-a-target="preview-card-image-link"]') ||
       target.closest('[class*="PreviewCard"]') ||
       target.closest('article[class*="Layout"]') ||
-      target.closest('div[data-target="directory-first-item"]') || // 카테고리 상단 아이템
-      target.closest('a[href*="/"]'); // 일반 링크 (최후의 수단, 채널명 추출에서 검증됨)
+      target.closest('div[data-target="directory-first-item"]') ||
+      layoutCard;
 
     if (streamCard) {
-      // 태그나 제목 클릭 시 무시 (썸네일/비디오 영역 클릭만 허용)
-      if (target.closest('[class*="ScTagContent"]') ||
-        target.closest('[class*="tw-title"]') ||
-        target.closest('h3') ||
-        target.closest('[data-a-target="preview-card-channel-link"]')) {
-        console.log(LOG_PREFIX, 'Ignored click on title/tag inside stream card');
-        return;
+      // Layout-sc-* 내부에서 채널 링크 찾기
+      let channel = null;
+
+      // 1. 카드 내부의 채널 링크에서 추출
+      const channelLink = streamCard.querySelector('a[href*="/"][data-a-target="preview-card-channel-link"]') ||
+        streamCard.querySelector('a[href*="/"][data-a-target="preview-card-image-link"]') ||
+        streamCard.querySelector('a[href^="/"]');
+
+      if (channelLink) {
+        channel = extractChannelFromHref(channelLink.getAttribute('href'));
       }
 
-      const channel = findChannelFromElement(streamCard);
-      // 채널명이 유효하고, 게임 카테고리 링크가 아닌 경우에만 오픈
-      if (channel && channel !== 'directory' && !channel.includes('/')) {
+      // 2. 일반적인 방법으로 찾기
+      if (!channel) {
+        channel = findChannelFromElement(streamCard);
+      }
+
+      // 3. 부모 요소에서 찾기 (Layout-sc-* 가 중첩된 경우)
+      if (!channel && layoutCard) {
+        const parentCard = layoutCard.parentElement?.closest('[class*="Layout-sc-"]');
+        if (parentCard) {
+          const parentLink = parentCard.querySelector('a[href^="/"]');
+          if (parentLink) {
+            channel = extractChannelFromHref(parentLink.getAttribute('href'));
+          }
+        }
+      }
+
+      // 채널명이 유효하고, 예외 경로가 아닌 경우에만 오픈
+      if (channel && channel !== 'directory' && !channel.includes('/') && channel !== 'category') {
         console.log(LOG_PREFIX, 'Stream card clicked:', channel);
         event.preventDefault();
         event.stopPropagation();
@@ -203,14 +243,14 @@
     const target = event.target;
 
     // 제외할 요소 클릭 시 무시
-    // .Layout-sc-1xcs6mc-0 kpalQF 같은 클래스는 동적일 수 있으므로 부분 매칭도 고려해야 함
-    if (target.closest('.Layout-sc-1xcs6mc-0.kpalQF') ||
-      target.closest('.ScTagContent-sc-14s7ciu-1.kVhHfd') ||
-      target.closest('.InjectLayout-sc-1i43xsx-0.fAYJcN.tw-image.tw-image-avatar') ||
-      target.closest('[class*="ScTagContent"]') || // 태그 일반화
-      target.closest('[class*="tw-image-avatar"]') || // 프사 일반화
-      target.closest('[data-test-selector="top-nav__browse-link"]') || // 탐색 링크 명시적 제외
-      target.closest('[aria-label="탐색"]')) { // 탐색 라벨
+    if (target.closest('[class*="ScTagContent"]') || // 태그
+      target.closest('[class*="StreamTagButton"]') || // 스트림 태그 버튼
+      target.closest('[class*="tw-image-avatar"]') || // 프로필 이미지
+      target.closest('[data-test-selector="top-nav__browse-link"]') || // 탐색 링크
+      target.closest('[aria-label="탐색"]') || // 탐색 라벨
+      target.closest('[data-a-target="followed-channel"]') === null && target.closest('[class*="ChannelStatusTextIndicator"]') || // 채널 상태 텍스트
+      target.closest('nav') || // 네비게이션 바
+      target.closest('[data-a-target="top-nav-container"]')) { // 상단 네비게이션
       console.log(LOG_PREFIX, 'Click ignored due to exclude selector');
       return;
     }

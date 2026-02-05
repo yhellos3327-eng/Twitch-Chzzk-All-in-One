@@ -124,6 +124,21 @@ html {
   object-fit: cover;
   background: rgba(30, 30, 50, 0.8);
   box-shadow: 0 0 20px var(--accent-glow);
+  transition: all var(--transition-normal);
+}
+
+.profile-container {
+  cursor: pointer;
+  transition: transform var(--transition-normal);
+}
+
+.profile-container:hover {
+  transform: scale(1.08);
+}
+
+.profile-container:hover #profile-image {
+  border-color: white;
+  box-shadow: 0 0 28px var(--accent-glow);
 }
 
 .live-badge {
@@ -165,6 +180,13 @@ html {
   font-size: 17px;
   font-weight: 700;
   color: var(--text-main);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+#channel-name:hover {
+  color: var(--primary-color);
+  text-shadow: 0 0 12px var(--accent-glow);
 }
 
 .title-row {
@@ -691,6 +713,7 @@ input:checked + .slider:before {
 /* Select Input - Glass Style */
 .settings-select {
   width: 100%;
+  max-width: 100%;
   background: var(--bg-glass);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -712,6 +735,16 @@ input:checked + .slider:before {
 .settings-select option {
   background: #1a1a2e;
   color: var(--text-main);
+}
+
+/* Settings Label Row 수정 */
+.settings-label-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 /* Text Button - Glass Style */
@@ -782,14 +815,31 @@ input:checked + .slider:before {
    ======================================== */
 .eq-container {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  height: 160px;
-  padding: 16px 8px;
+  justify-content: space-around;
+  align-items: stretch;
+  height: 180px;
+  padding: 16px 12px;
   background: var(--bg-glass);
   border-radius: 14px;
   margin-top: 12px;
   border: var(--glass-border);
+  position: relative;
+}
+
+/* EQ 눈금 표시 */
+.eq-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 8px 8px 24px 0;
+  min-width: 28px;
+}
+
+.eq-scale span {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .eq-band {
@@ -797,14 +847,16 @@ input:checked + .slider:before {
   flex-direction: column;
   align-items: center;
   flex: 1;
+  max-width: 50px;
   height: 100%;
-  justify-content: space-between;
+  justify-content: flex-end;
+  position: relative;
 }
 
 .eq-band span {
   font-size: 10px;
   color: var(--text-muted);
-  margin-top: 10px;
+  margin-top: 8px;
   font-weight: 600;
 }
 
@@ -813,42 +865,55 @@ input[type=range].vertical-slider {
   writing-mode: vertical-lr;
   direction: rtl;
   -webkit-appearance: none;
-  width: 8px;
-  height: 100px;
+  appearance: none;
+  width: 6px;
+  height: 110px;
   background: var(--slider-bg);
   border-radius: 4px;
   outline: none;
-  margin: 5px;
+  cursor: pointer;
+}
+
+input[type=range].vertical-slider::-webkit-slider-runnable-track {
+  width: 6px;
+  height: 110px;
+  background: var(--slider-bg);
+  border-radius: 4px;
 }
 
 input[type=range].vertical-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
+  appearance: none;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--accent-gradient);
   cursor: pointer;
-  margin-left: -4px;
   box-shadow: 0 0 10px var(--accent-glow);
   transition: all var(--transition-fast);
+  margin-left: -6px;
 }
 
 input[type=range].vertical-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.15);
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+input[type=range].vertical-slider::-moz-range-track {
+  width: 6px;
+  height: 110px;
+  background: var(--slider-bg);
+  border-radius: 4px;
 }
 
 input[type=range].vertical-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--accent-gradient);
   cursor: pointer;
   border: none;
-}
-
-input[type=range].vertical-slider::-moz-range-track {
-  width: 8px;
-  background: var(--slider-bg);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 /* ========================================
