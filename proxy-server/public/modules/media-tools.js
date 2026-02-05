@@ -77,38 +77,15 @@ export const MediaTools = {
         }
 
         try {
-            // 비디오 스트림 캡처
-            let stream;
-
-            // canvas를 통한 캡처 (CORS 우회)
+            // canvas를 통한 캡처 (오디오 없이 - 비디오만)
+            // 오디오를 캡처하려면 MediaElementSource가 필요한데,
+            // 이미 AudioEnhancer에서 사용 중이면 충돌함
             const canvas = document.createElement('canvas');
             canvas.width = this.video.videoWidth || 1920;
             canvas.height = this.video.videoHeight || 1080;
             const ctx = canvas.getContext('2d');
 
-            // 오디오 컨텍스트에서 오디오 스트림 생성
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaElementSource(this.video);
-            const destination = audioCtx.createMediaStreamDestination();
-            source.connect(destination);
-            source.connect(audioCtx.destination); // 스피커로도 출력
-
-            // 캔버스 스트림 + 오디오 스트림 결합
-            const canvasStream = canvas.captureStream(30);
-            const audioTrack = destination.stream.getAudioTracks()[0];
-            if (audioTrack) {
-                canvasStream.addTrack(audioTrack);
-            }
-
-            stream = canvasStream;
-
-            // 캔버스에 비디오 프레임 그리기
-            const drawFrame = () => {
-                if (this.isRecording) {
-                    ctx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
-                    requestAnimationFrame(drawFrame);
-                }
-            };
+            const stream = canvas.captureStream(30);
 
             // MediaRecorder 설정
             const options = {
@@ -118,6 +95,8 @@ export const MediaTools = {
 
             this.mediaRecorder = new MediaRecorder(stream, options);
             this.recordedChunks = [];
+            this.recordingCanvas = canvas;
+            this.recordingCtx = ctx;
 
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -127,7 +106,8 @@ export const MediaTools = {
 
             this.mediaRecorder.onstop = () => {
                 this.saveRecording();
-                audioCtx.close();
+                this.recordingCanvas = null;
+                this.recordingCtx = null;
             };
 
             this.mediaRecorder.onerror = (event) => {
@@ -140,9 +120,17 @@ export const MediaTools = {
             this.isRecording = true;
             this.recordingStartTime = Date.now();
             this.mediaRecorder.start(1000); // 1초마다 데이터 수집
+
+            // 캔버스에 비디오 프레임 그리기
+            const drawFrame = () => {
+                if (this.isRecording && this.recordingCtx && this.video) {
+                    this.recordingCtx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
+                    requestAnimationFrame(drawFrame);
+                }
+            };
             drawFrame();
 
-            this.showNotification('녹화 시작 (최대 60초)', 'recording');
+            this.showNotification('녹화 시작 (최대 60초, 비디오만)', 'recording');
             this.updateRecordingUI(true);
 
             // 최대 녹화 시간 제한
@@ -156,58 +144,13 @@ export const MediaTools = {
             console.error('[Clip] Start recording error:', e);
             this.showNotification('녹화 시작 실패', 'error');
             this.isRecording = false;
-
-            // 대체 방법: 간단한 캔버스 녹화
-            this.startSimpleRecording();
         }
     },
 
-    // 간단한 캔버스 기반 녹화 (오디오 없음)
+    // 레거시: 간단한 캔버스 기반 녹화 (위 함수와 동일하게 변경)
     async startSimpleRecording() {
-        try {
-            const canvas = document.createElement('canvas');
-            canvas.width = this.video.videoWidth || 1920;
-            canvas.height = this.video.videoHeight || 1080;
-            const ctx = canvas.getContext('2d');
-
-            const stream = canvas.captureStream(30);
-
-            this.mediaRecorder = new MediaRecorder(stream, {
-                mimeType: this.getSupportedMimeType(),
-                videoBitsPerSecond: 5000000
-            });
-
-            this.recordedChunks = [];
-
-            this.mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) this.recordedChunks.push(e.data);
-            };
-
-            this.mediaRecorder.onstop = () => this.saveRecording();
-
-            const drawFrame = () => {
-                if (this.isRecording) {
-                    ctx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
-                    requestAnimationFrame(drawFrame);
-                }
-            };
-
-            this.isRecording = true;
-            this.recordingStartTime = Date.now();
-            this.mediaRecorder.start(1000);
-            drawFrame();
-
-            this.showNotification('녹화 시작 (비디오만)', 'recording');
-            this.updateRecordingUI(true);
-
-            setTimeout(() => {
-                if (this.isRecording) this.stopRecording();
-            }, this.maxRecordingDuration);
-
-        } catch (e) {
-            console.error('[Clip] Simple recording failed:', e);
-            this.showNotification('녹화 지원되지 않음', 'error');
-        }
+        // startRecording과 동일하게 동작
+        return this.startRecording();
     },
 
     stopRecording() {

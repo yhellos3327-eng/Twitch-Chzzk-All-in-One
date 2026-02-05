@@ -4,6 +4,10 @@ import { loadChatIframe, refreshChat, openChatPopup } from './modules/chat.js';
 import { VideoEnhancer } from './modules/video-enhancer.js';
 import { AudioEnhancer } from './modules/audio-enhancer.js';
 import { MediaTools } from './modules/media-tools.js';
+import { Captions } from './modules/captions.js';
+import { StreamStats } from './modules/stream-stats.js';
+import { KeyboardShortcuts } from './modules/keyboard-shortcuts.js';
+import { PlaybackSpeed } from './modules/playback-speed.js';
 
 let hls = null;
 let currentChannel = null;
@@ -295,6 +299,134 @@ function setupControls() {
     if (goLiveBtn) {
         goLiveBtn.addEventListener('click', () => MediaTools.goLive());
     }
+
+    // Captions Button
+    const captionBtn = document.getElementById('caption-btn');
+    if (captionBtn) {
+        captionBtn.addEventListener('click', () => {
+            Captions.toggle();
+            captionBtn.classList.toggle('active', Captions.isActive);
+        });
+    }
+
+    // Stats Button
+    const statsBtn = document.getElementById('stats-btn');
+    if (statsBtn) {
+        statsBtn.addEventListener('click', () => StreamStats.toggle());
+    }
+
+    // Speed Buttons
+    const speedDownBtn = document.getElementById('speed-down-btn');
+    const speedUpBtn = document.getElementById('speed-up-btn');
+    const speedResetBtn = document.getElementById('speed-reset-btn');
+
+    if (speedDownBtn) speedDownBtn.addEventListener('click', () => PlaybackSpeed.speedDown());
+    if (speedUpBtn) speedUpBtn.addEventListener('click', () => PlaybackSpeed.speedUp());
+    if (speedResetBtn) speedResetBtn.addEventListener('click', () => PlaybackSpeed.reset());
+
+    // Help Button
+    const helpBtn = document.getElementById('help-btn');
+    if (helpBtn) {
+        helpBtn.addEventListener('click', () => KeyboardShortcuts.toggleHelp());
+    }
+
+    // Seekbar setup
+    setupSeekbar();
+}
+
+// ==================== 재생바 (Seekbar) ====================
+let seekbarUpdateInterval = null;
+
+function setupSeekbar() {
+    const seekbarInput = document.getElementById('seekbar-input');
+    const seekbarProgress = document.getElementById('seekbar-progress');
+    const seekbarBuffer = document.getElementById('seekbar-buffer');
+    const seekbarThumb = document.getElementById('seekbar-thumb');
+    const seekbarCurrent = document.getElementById('seekbar-current');
+    const seekbarTooltip = document.getElementById('seekbar-tooltip');
+    const seekbarLive = document.getElementById('seekbar-live-indicator');
+    const seekbarWrapper = document.querySelector('.seekbar-wrapper');
+
+    if (!seekbarInput) return;
+
+    // 시크바 업데이트
+    function updateSeekbar() {
+        if (!video || !video.buffered.length) return;
+
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+        const currentTime = video.currentTime;
+        const behindLive = bufferedEnd - currentTime;
+
+        // 진행바 위치 (버퍼 끝 기준으로 상대적 위치)
+        const progress = bufferedEnd > 0 ? (currentTime / bufferedEnd) * 100 : 100;
+        seekbarProgress.style.width = `${progress}%`;
+        seekbarThumb.style.left = `${progress}%`;
+
+        // 버퍼 표시 (항상 100%)
+        seekbarBuffer.style.width = '100%';
+
+        // 현재 시간 표시 (라이브 대비)
+        if (behindLive > 1) {
+            const mins = Math.floor(behindLive / 60);
+            const secs = Math.floor(behindLive % 60);
+            seekbarCurrent.textContent = `-${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            seekbarCurrent.classList.add('behind');
+            seekbarLive.classList.add('not-live');
+        } else {
+            seekbarCurrent.textContent = 'LIVE';
+            seekbarCurrent.classList.remove('behind');
+            seekbarLive.classList.remove('not-live');
+        }
+
+        // 슬라이더 값 업데이트
+        seekbarInput.value = progress;
+    }
+
+    // 주기적 업데이트
+    seekbarUpdateInterval = setInterval(updateSeekbar, 250);
+
+    // 시크바 드래그
+    let isDragging = false;
+
+    seekbarInput.addEventListener('input', (e) => {
+        if (!video || !video.buffered.length) return;
+
+        const percent = parseFloat(e.target.value);
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+        const newTime = (percent / 100) * bufferedEnd;
+
+        video.currentTime = newTime;
+        updateSeekbar();
+    });
+
+    seekbarInput.addEventListener('mousedown', () => isDragging = true);
+    seekbarInput.addEventListener('mouseup', () => isDragging = false);
+
+    // 툴팁 표시
+    seekbarWrapper?.addEventListener('mousemove', (e) => {
+        if (!video || !video.buffered.length) return;
+
+        const rect = seekbarWrapper.getBoundingClientRect();
+        const percent = (e.clientX - rect.left) / rect.width;
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+        const time = percent * bufferedEnd;
+        const behindLive = bufferedEnd - time;
+
+        if (behindLive > 1) {
+            const mins = Math.floor(behindLive / 60);
+            const secs = Math.floor(behindLive % 60);
+            seekbarTooltip.textContent = `-${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        } else {
+            seekbarTooltip.textContent = 'LIVE';
+        }
+
+        seekbarTooltip.style.left = `${percent * 100}%`;
+    });
+
+    // LIVE 클릭시 라이브로 이동
+    seekbarLive?.addEventListener('click', () => {
+        MediaTools.goLive();
+    });
 }
 
 async function startStream(channel) {
@@ -330,6 +462,17 @@ async function startStream(channel) {
 
                 // Initialize MediaTools after video is ready
                 MediaTools.init(video, channel);
+
+                // Initialize StreamStats with HLS instance
+                StreamStats.init(hls, video);
+
+                // Set stream start time for uptime
+                if (info.metadata?.stream?.startedAt) {
+                    StreamStats.setStreamStartTime(info.metadata.stream.startedAt);
+                }
+
+                // Initialize PlaybackSpeed
+                PlaybackSpeed.init(video);
             });
         }
 
@@ -358,6 +501,94 @@ function init() {
     // Enhancers need DOM to be ready
     VideoEnhancer.init();
     AudioEnhancer.init();
+
+    // Initialize Captions
+    Captions.init();
+
+    // Initialize Keyboard Shortcuts with handlers
+    KeyboardShortcuts.init({
+        // 재생 컨트롤
+        togglePlay: () => {
+            if (video) video.paused ? video.play() : video.pause();
+        },
+        // 볼륨
+        toggleMute: () => {
+            if (video) video.muted = !video.muted;
+        },
+        volumeUp: () => {
+            if (video) video.volume = Math.min(1, video.volume + 0.05);
+        },
+        volumeDown: () => {
+            if (video) video.volume = Math.max(0, video.volume - 0.05);
+        },
+        // 탐색
+        seekBack5: () => MediaTools.seekBackward(5),
+        seekBack10: () => MediaTools.seekBackward(10),
+        seekBack30: () => MediaTools.seekBackward(30),
+        seekForward5: () => MediaTools.seekForward(5),
+        seekForward10: () => MediaTools.seekForward(10),
+        seekForward30: () => MediaTools.seekForward(30),
+        goLive: () => MediaTools.goLive(),
+        // 미디어
+        screenshot: () => MediaTools.takeScreenshot(),
+        toggleRecording: () => {
+            if (MediaTools.isRecording) {
+                MediaTools.stopRecording();
+            } else {
+                MediaTools.startRecording();
+            }
+        },
+        // 화면
+        toggleFullscreen: () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                document.getElementById('player-container')?.requestFullscreen();
+            }
+        },
+        togglePIP: async () => {
+            try {
+                if (!document.pictureInPictureElement) {
+                    await video?.requestPictureInPicture();
+                } else {
+                    await document.exitPictureInPicture();
+                }
+            } catch (e) { console.error('[PIP]', e); }
+        },
+        toggleTheater: () => {
+            document.getElementById('player-container')?.classList.toggle('theater-mode');
+        },
+        // 자막
+        toggleCaptions: () => {
+            Captions.toggle();
+            document.getElementById('caption-btn')?.classList.toggle('active', Captions.isActive);
+        },
+        toggleTranslation: () => Captions.toggleTranslation(),
+        // 채팅
+        toggleChat: () => {
+            const container = document.getElementById('player-container');
+            container?.classList.toggle('chat-visible');
+        },
+        // 속도
+        speedUp: () => PlaybackSpeed.speedUp(),
+        speedDown: () => PlaybackSpeed.speedDown(),
+        speedReset: () => PlaybackSpeed.reset(),
+        // 화질
+        quality1: () => changeQuality(qualities.length - 1),
+        quality2: () => changeQuality(Math.floor(qualities.length * 0.75)),
+        quality3: () => changeQuality(Math.floor(qualities.length * 0.5)),
+        quality4: () => changeQuality(Math.floor(qualities.length * 0.25)),
+        quality5: () => changeQuality(0),
+        // 기타
+        toggleStats: () => StreamStats.toggle(),
+        toggleHelp: () => KeyboardShortcuts.toggleHelp(),
+        closeOverlays: () => {
+            KeyboardShortcuts.hideHelp();
+            StreamStats.hide();
+            document.getElementById('settings-menu').style.display = 'none';
+            document.getElementById('quality-menu').style.display = 'none';
+        }
+    });
 
     if (window.innerWidth > 1000) {
         const app = elements.app();

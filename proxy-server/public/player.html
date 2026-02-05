@@ -44,6 +44,23 @@
             </div>
         </div>
 
+        <!-- 재생바 (시크바) -->
+        <div class="seekbar-container" id="seekbar-container">
+            <div class="seekbar-wrapper">
+                <div class="seekbar-buffer" id="seekbar-buffer"></div>
+                <div class="seekbar-progress" id="seekbar-progress"></div>
+                <div class="seekbar-thumb" id="seekbar-thumb"></div>
+                <input type="range" class="seekbar-input" id="seekbar-input" min="0" max="100" value="100" step="0.1">
+            </div>
+            <div class="seekbar-times">
+                <span class="seekbar-current" id="seekbar-current">-00:00</span>
+                <span class="seekbar-live-indicator" id="seekbar-live-indicator">
+                    <span class="live-dot"></span> LIVE
+                </span>
+            </div>
+            <div class="seekbar-tooltip" id="seekbar-tooltip">00:00</div>
+        </div>
+
         <!-- 하단 컨트롤 바 (player.js 호환용) -->
         <div class="control-bar" id="control-bar">
             <div class="control-left">
@@ -64,7 +81,7 @@
             <!-- 미디어 도구 (타임머신, 스크린샷, 녹화) -->
             <div class="control-center">
                 <button id="seek-back-btn" class="control-btn" title="10초 뒤로 (J)">
-                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" transform="rotate(180, 12, 12)"/></svg>
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 18l-8.5-6 8.5-6v12zm.5-6l8.5-6v12l-8.5-6z"/></svg>
                 </button>
                 <button id="go-live-btn" class="control-btn live-btn" title="라이브로 이동 (Home)">
                     <span class="live-dot"></span>
@@ -99,12 +116,28 @@
                     <span id="current-quality" style="display:none;"></span>
                 </div>
 
-                <button id="pip-btn" class="control-btn" title="PIP">
+                <!-- 자막 버튼 -->
+                <button id="caption-btn" class="control-btn" title="자막 (C)">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/></svg>
+                </button>
+
+                <!-- 통계 버튼 -->
+                <button id="stats-btn" class="control-btn" title="통계 (I)">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                </button>
+
+                <button id="pip-btn" class="control-btn" title="PIP (P)">
                     <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>
                 </button>
-                <button id="fullscreen-btn" class="control-btn" title="전체화면">
+                <button id="fullscreen-btn" class="control-btn" title="전체화면 (F)">
                     <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
                 </button>
+
+                <!-- 도움말 버튼 -->
+                <button id="help-btn" class="control-btn" title="단축키 (?)">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+                </button>
+
                 <button id="open-twitch" style="display:none;">Twitch</button>
                 <button id="retry-btn" style="display:none;">Retry</button>
             </div>

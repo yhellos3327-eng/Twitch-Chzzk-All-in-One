@@ -1278,3 +1278,517 @@ input[type=range].vertical-slider::-moz-range-thumb {
 .control-btn:hover .shortcut-hint {
   opacity: 1;
 }
+
+/* ========================================
+   AI Captions - 자막 시스템
+   ======================================== */
+.caption-container {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  max-width: 900px;
+  z-index: 25;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+  --caption-bg-opacity: 0.7;
+}
+
+.caption-container.active {
+  opacity: 1;
+}
+
+.caption-container.position-bottom {
+  bottom: 100px;
+}
+
+.caption-container.position-top {
+  top: 100px;
+}
+
+.caption-text-wrapper {
+  background: rgba(0, 0, 0, var(--caption-bg-opacity));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 12px;
+  padding: 16px 24px;
+  text-align: center;
+}
+
+.caption-history {
+  margin-bottom: 8px;
+}
+
+.caption-line {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.caption-current {
+  color: white;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.4;
+  min-height: 28px;
+}
+
+.caption-current.interim {
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+
+/* Caption Font Sizes */
+.caption-container.font-small .caption-current { font-size: 16px; }
+.caption-container.font-small .caption-line { font-size: 14px; }
+.caption-container.font-medium .caption-current { font-size: 20px; }
+.caption-container.font-medium .caption-line { font-size: 16px; }
+.caption-container.font-large .caption-current { font-size: 26px; }
+.caption-container.font-large .caption-line { font-size: 20px; }
+
+.caption-status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.caption-listening .pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+/* ========================================
+   Stream Stats Panel - 통계 패널
+   ======================================== */
+.stats-panel {
+  position: absolute;
+  top: 100px;
+  left: 28px;
+  width: 280px;
+  background: var(--bg-menu);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 16px;
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+  z-index: 100;
+  opacity: 0;
+  transform: translateX(-20px);
+  pointer-events: none;
+  transition: all var(--transition-normal);
+}
+
+.stats-panel.visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: var(--glass-border);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.stats-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all var(--transition-fast);
+}
+
+.stats-close:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-main);
+}
+
+.stats-content {
+  padding: 14px 18px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+}
+
+.stat-label {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.stat-value {
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ========================================
+   Uptime Display - 업타임 표시
+   ======================================== */
+.uptime-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: var(--glass-border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.uptime-icon {
+  font-size: 14px;
+}
+
+.uptime-value {
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* ========================================
+   Keyboard Shortcuts Help - 단축키 도움말
+   ======================================== */
+.shortcuts-help {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  width: 90%;
+  max-width: 700px;
+  max-height: 80vh;
+  background: var(--bg-menu);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 20px;
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: all var(--transition-normal);
+  overflow: hidden;
+}
+
+.shortcuts-help.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
+.shortcuts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: var(--glass-border);
+  background: var(--bg-glass);
+}
+
+.shortcuts-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.shortcuts-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 8px;
+  transition: all var(--transition-fast);
+}
+
+.shortcuts-close:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-main);
+}
+
+.shortcuts-content {
+  padding: 20px 24px;
+  max-height: calc(80vh - 80px);
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.shortcuts-category h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary-color);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.shortcut-item kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 6px 10px;
+  background: var(--bg-glass-active);
+  border: var(--glass-border);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.shortcut-item span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ========================================
+   Speed Display - 재생 속도 표시
+   ======================================== */
+.speed-display {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  padding: 16px 32px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 12px;
+  font-size: 32px;
+  font-weight: 700;
+  color: white;
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+.speed-display.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* ========================================
+   Caption Button in Control Bar
+   ======================================== */
+#caption-btn.active {
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.15);
+}
+
+#caption-btn.active svg {
+  filter: drop-shadow(0 0 6px var(--success-glow));
+}
+
+/* ========================================
+   Seekbar - 재생바 (타임머신용)
+   ======================================== */
+.seekbar-container {
+  position: absolute;
+  bottom: 80px;
+  left: 0;
+  right: 0;
+  padding: 0 28px 12px;
+  z-index: 19;
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+#player-container:hover .seekbar-container {
+  opacity: 1;
+}
+
+.seekbar-wrapper {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: height var(--transition-fast);
+}
+
+.seekbar-wrapper:hover {
+  height: 10px;
+}
+
+.seekbar-buffer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  pointer-events: none;
+  width: 100%;
+}
+
+.seekbar-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 3px;
+  pointer-events: none;
+  width: 100%;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.seekbar-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  left: 100%;
+}
+
+.seekbar-wrapper:hover .seekbar-thumb {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.seekbar-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.seekbar-times {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.seekbar-current {
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* 라이브보다 뒤에 있을 때 */
+.seekbar-current.behind {
+  color: var(--primary-color);
+}
+
+.seekbar-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--error);
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 10px;
+  background: rgba(239, 68, 68, 0.15);
+  border-radius: 6px;
+  transition: all var(--transition-fast);
+}
+
+.seekbar-live-indicator:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.seekbar-live-indicator .live-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--error);
+  border-radius: 50%;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* 라이브가 아닐 때 (뒤로 갔을 때) */
+.seekbar-live-indicator.not-live {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
+.seekbar-live-indicator.not-live .live-dot {
+  background: var(--text-muted);
+  animation: none;
+}
+
+.seekbar-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  white-space: nowrap;
+}
+
+.seekbar-wrapper:hover .seekbar-tooltip {
+  opacity: 1;
+}
+
+/* 채팅 열렸을 때 조정 */
+#player-container.chat-visible .seekbar-container {
+  right: 360px;
+}
