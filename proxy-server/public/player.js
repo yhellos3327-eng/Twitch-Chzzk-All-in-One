@@ -502,8 +502,8 @@ function init() {
     VideoEnhancer.init();
     AudioEnhancer.init();
 
-    // Initialize Captions
-    Captions.init();
+    // Initialize Captions with video element
+    Captions.init(video);
 
     // Initialize Keyboard Shortcuts with handlers
     KeyboardShortcuts.init({

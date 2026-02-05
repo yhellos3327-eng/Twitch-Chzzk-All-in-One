@@ -9,7 +9,8 @@ export const MediaTools = {
     recordedChunks: [],
     isRecording: false,
     recordingStartTime: null,
-    maxRecordingDuration: 60000, // 최대 60초
+    maxRecordingDuration: 120000, // 최대 2분
+    displayStream: null, // 탭 오디오 캡처용
 
     // 타임머신 (DVR) 관련
     seekBuffer: 30, // 30초 뒤로 가기 가능
@@ -64,7 +65,7 @@ export const MediaTools = {
         }
     },
 
-    // ==================== 클립 녹화 ====================
+    // ==================== 클립 녹화 (오디오 포함) ====================
     async startRecording() {
         if (this.isRecording) {
             console.log('[Clip] Already recording');
@@ -77,9 +78,116 @@ export const MediaTools = {
         }
 
         try {
-            // canvas를 통한 캡처 (오디오 없이 - 비디오만)
-            // 오디오를 캡처하려면 MediaElementSource가 필요한데,
-            // 이미 AudioEnhancer에서 사용 중이면 충돌함
+            // getDisplayMedia로 탭 오디오 캡처
+            // preferCurrentTab: true로 현재 탭만 선택
+            this.displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    displaySurface: 'browser',
+                    width: { ideal: this.video.videoWidth || 1920 },
+                    height: { ideal: this.video.videoHeight || 1080 },
+                    frameRate: { ideal: 30 }
+                },
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    sampleRate: 48000
+                },
+                preferCurrentTab: true,
+                selfBrowserSurface: 'include',
+                systemAudio: 'include'
+            });
+
+            // 스트림 종료 감지 (사용자가 공유 중지 클릭 시)
+            this.displayStream.getVideoTracks()[0].onended = () => {
+                if (this.isRecording) {
+                    this.stopRecording();
+                }
+            };
+
+            // 오디오 트랙 확인
+            const audioTracks = this.displayStream.getAudioTracks();
+            const hasAudio = audioTracks.length > 0;
+            console.log('[Clip] Audio tracks:', audioTracks.length, hasAudio ? audioTracks[0].label : 'none');
+
+            // MediaRecorder 설정
+            const options = {
+                mimeType: this.getSupportedMimeType(),
+                videoBitsPerSecond: 8000000, // 8 Mbps
+                audioBitsPerSecond: 128000   // 128 kbps
+            };
+
+            this.mediaRecorder = new MediaRecorder(this.displayStream, options);
+            this.recordedChunks = [];
+
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.recordedChunks.push(event.data);
+                }
+            };
+
+            this.mediaRecorder.onstop = () => {
+                this.saveRecording();
+                this.cleanupDisplayStream();
+            };
+
+            this.mediaRecorder.onerror = (event) => {
+                console.error('[Clip] Recording error:', event.error);
+                this.showNotification('녹화 오류 발생', 'error');
+                this.isRecording = false;
+                this.cleanupDisplayStream();
+            };
+
+            // 녹화 시작
+            this.isRecording = true;
+            this.recordingStartTime = Date.now();
+            this.mediaRecorder.start(1000); // 1초마다 데이터 수집
+
+            const audioStatus = hasAudio ? '오디오 포함' : '오디오 없음';
+            this.showNotification(`녹화 시작 (최대 2분, ${audioStatus})`, 'recording');
+            this.updateRecordingUI(true);
+
+            // 최대 녹화 시간 제한
+            setTimeout(() => {
+                if (this.isRecording) {
+                    this.stopRecording();
+                }
+            }, this.maxRecordingDuration);
+
+        } catch (e) {
+            console.error('[Clip] Start recording error:', e);
+
+            if (e.name === 'NotAllowedError') {
+                this.showNotification('화면 공유가 취소되었습니다', 'error');
+            } else {
+                this.showNotification('녹화 시작 실패', 'error');
+            }
+
+            this.isRecording = false;
+            this.cleanupDisplayStream();
+        }
+    },
+
+    cleanupDisplayStream() {
+        if (this.displayStream) {
+            this.displayStream.getTracks().forEach(track => track.stop());
+            this.displayStream = null;
+        }
+    },
+
+    // 레거시: 간단한 캔버스 기반 녹화 (비디오만, 오디오 없음)
+    async startSimpleRecording() {
+        if (this.isRecording) {
+            console.log('[Clip] Already recording');
+            return;
+        }
+
+        if (!this.video) {
+            console.error('[Clip] Video element not found');
+            return;
+        }
+
+        try {
             const canvas = document.createElement('canvas');
             canvas.width = this.video.videoWidth || 1920;
             canvas.height = this.video.videoHeight || 1080;
@@ -87,10 +195,9 @@ export const MediaTools = {
 
             const stream = canvas.captureStream(30);
 
-            // MediaRecorder 설정
             const options = {
                 mimeType: this.getSupportedMimeType(),
-                videoBitsPerSecond: 8000000 // 8 Mbps
+                videoBitsPerSecond: 8000000
             };
 
             this.mediaRecorder = new MediaRecorder(stream, options);
@@ -116,12 +223,10 @@ export const MediaTools = {
                 this.isRecording = false;
             };
 
-            // 녹화 시작
             this.isRecording = true;
             this.recordingStartTime = Date.now();
-            this.mediaRecorder.start(1000); // 1초마다 데이터 수집
+            this.mediaRecorder.start(1000);
 
-            // 캔버스에 비디오 프레임 그리기
             const drawFrame = () => {
                 if (this.isRecording && this.recordingCtx && this.video) {
                     this.recordingCtx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
@@ -130,10 +235,9 @@ export const MediaTools = {
             };
             drawFrame();
 
-            this.showNotification('녹화 시작 (최대 60초, 비디오만)', 'recording');
+            this.showNotification('녹화 시작 (비디오만)', 'recording');
             this.updateRecordingUI(true);
 
-            // 최대 녹화 시간 제한
             setTimeout(() => {
                 if (this.isRecording) {
                     this.stopRecording();
@@ -141,16 +245,10 @@ export const MediaTools = {
             }, this.maxRecordingDuration);
 
         } catch (e) {
-            console.error('[Clip] Start recording error:', e);
+            console.error('[Clip] Start simple recording error:', e);
             this.showNotification('녹화 시작 실패', 'error');
             this.isRecording = false;
         }
-    },
-
-    // 레거시: 간단한 캔버스 기반 녹화 (위 함수와 동일하게 변경)
-    async startSimpleRecording() {
-        // startRecording과 동일하게 동작
-        return this.startRecording();
     },
 
     stopRecording() {
