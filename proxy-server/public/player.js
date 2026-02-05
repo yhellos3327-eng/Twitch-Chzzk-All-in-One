@@ -21,6 +21,254 @@ function getChannelFromUrl() {
     return params.get('channel');
 }
 
+function isPopoutMode() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('popout') === 'true';
+}
+
+// Popout 모드 UI 설정
+function setupPopoutMode() {
+    console.log('[Player] Popout mode activated');
+
+    // body에 popout 클래스 추가
+    document.body.classList.add('popout-mode');
+
+    // 채팅 컨테이너 숨기기
+    const chatContainer = document.getElementById('chat-container');
+    if (chatContainer) chatContainer.style.display = 'none';
+
+    // 채팅 관련 버튼들 숨기기
+    const chatButtons = document.querySelector('.controls-overlay-chat');
+    if (chatButtons) chatButtons.style.display = 'none';
+
+    // 상단바 간소화
+    const topBar = document.getElementById('top-bar');
+    if (topBar) {
+        topBar.classList.add('popout-top-bar');
+    }
+
+    // 설정 버튼 숨기기
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) settingsBtn.style.display = 'none';
+
+    // 도움말 버튼 숨기기
+    const helpBtn = document.getElementById('help-btn');
+    if (helpBtn) helpBtn.style.display = 'none';
+
+    // 통계 버튼 숨기기
+    const statsBtn = document.getElementById('stats-btn');
+    if (statsBtn) statsBtn.style.display = 'none';
+
+    // 녹화 버튼 숨기기
+    const recordBtn = document.getElementById('record-btn');
+    if (recordBtn) recordBtn.style.display = 'none';
+
+    // 스크린샷 버튼 숨기기
+    const screenshotBtn = document.getElementById('screenshot-btn');
+    if (screenshotBtn) screenshotBtn.style.display = 'none';
+
+    // 자막 버튼 숨기기
+    const captionBtn = document.getElementById('caption-btn');
+    if (captionBtn) captionBtn.style.display = 'none';
+
+    // 시크바 영역 간소화
+    const seekbarContainer = document.getElementById('seekbar-container');
+    if (seekbarContainer) {
+        seekbarContainer.classList.add('popout-seekbar');
+    }
+
+    // 컨트롤바 간소화
+    const controlBar = document.getElementById('control-bar');
+    if (controlBar) {
+        controlBar.classList.add('popout-control-bar');
+    }
+
+    // Popout 전용 스타일 주입
+    injectPopoutStyles();
+
+    // 윈도우 타이틀 설정
+    document.title = `${currentChannel || 'Stream'} - Popout`;
+}
+
+// Popout 전용 CSS 스타일
+function injectPopoutStyles() {
+    const style = document.createElement('style');
+    style.id = 'popout-styles';
+    style.textContent = `
+        /* Popout Mode Styles */
+        body.popout-mode {
+            background: #000;
+        }
+
+        body.popout-mode #player-container {
+            border-radius: 0;
+        }
+
+        /* 상단바 간소화 */
+        body.popout-mode .popout-top-bar {
+            padding: 8px 12px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+        }
+
+        body.popout-mode .popout-top-bar .controls-right {
+            gap: 8px;
+        }
+
+        body.popout-mode .popout-top-bar .profile-container {
+            width: 32px;
+            height: 32px;
+        }
+
+        body.popout-mode .popout-top-bar .live-badge {
+            font-size: 9px;
+            padding: 1px 4px;
+        }
+
+        body.popout-mode .popout-top-bar .text-info {
+            gap: 2px;
+        }
+
+        body.popout-mode .popout-top-bar #channel-name {
+            font-size: 13px;
+        }
+
+        body.popout-mode .popout-top-bar .title-row {
+            font-size: 11px;
+        }
+
+        body.popout-mode .popout-top-bar #stream-title {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        body.popout-mode .popout-top-bar #game-name {
+            display: none;
+        }
+
+        body.popout-mode .popout-top-bar #viewer-count-container {
+            font-size: 11px;
+            padding: 4px 8px;
+        }
+
+        /* 컨트롤바 간소화 */
+        body.popout-mode .popout-control-bar {
+            padding: 8px 12px;
+            gap: 8px;
+        }
+
+        body.popout-mode .popout-control-bar .control-btn {
+            width: 32px;
+            height: 32px;
+        }
+
+        body.popout-mode .popout-control-bar .control-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        body.popout-mode .popout-control-bar .volume-slider {
+            width: 60px;
+        }
+
+        body.popout-mode .popout-control-bar .control-center {
+            gap: 4px;
+        }
+
+        body.popout-mode .popout-control-bar .control-divider {
+            display: none;
+        }
+
+        body.popout-mode .popout-control-bar .go-live-btn {
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+
+        body.popout-mode .popout-control-bar .quality-wrapper button {
+            font-size: 11px;
+            padding: 4px 8px;
+        }
+
+        /* 시크바 간소화 */
+        body.popout-mode .popout-seekbar {
+            padding: 0 12px 4px;
+        }
+
+        body.popout-mode .popout-seekbar .seekbar-wrapper {
+            height: 3px;
+        }
+
+        body.popout-mode .popout-seekbar .seekbar-wrapper:hover {
+            height: 5px;
+        }
+
+        body.popout-mode .popout-seekbar .seekbar-times {
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        /* 비디오 영역 최대화 */
+        body.popout-mode #video-player {
+            border-radius: 0;
+        }
+
+        /* 시청자 수 컨테이너 표시 */
+        body.popout-mode #viewer-count-container {
+            display: flex !important;
+        }
+
+        /* PIP 버튼 숨기기 (popout에서는 의미 없음) */
+        body.popout-mode #pip-btn {
+            display: none;
+        }
+
+        /* 전체화면 버튼만 표시 */
+        body.popout-mode .control-right {
+            gap: 6px;
+        }
+
+        /* 호버 시 컨트롤 표시 */
+        body.popout-mode #player-container:not(:hover) .popout-top-bar,
+        body.popout-mode #player-container:not(:hover) .popout-control-bar,
+        body.popout-mode #player-container:not(:hover) .popout-seekbar {
+            opacity: 0;
+        }
+
+        body.popout-mode .popout-top-bar,
+        body.popout-mode .popout-control-bar,
+        body.popout-mode .popout-seekbar {
+            transition: opacity 0.3s ease;
+        }
+
+        /* 전체화면 시 추가 간소화 */
+        body.popout-mode:fullscreen .popout-top-bar {
+            padding: 12px 16px;
+        }
+
+        body.popout-mode:fullscreen .popout-control-bar {
+            padding: 12px 16px;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// 오디오 전용인지 확인
+function isAudioOnly(quality) {
+    const name = (quality.name || '').toLowerCase();
+    return name.includes('audio_only') || name.includes('audio only');
+}
+
+// 최고 화질(비디오) 인덱스 찾기
+function findBestVideoQualityIndex(qualityList) {
+    for (let i = 0; i < qualityList.length; i++) {
+        if (!isAudioOnly(qualityList[i])) {
+            return i;
+        }
+    }
+    return 0;
+}
+
 function getQualityDisplayName(quality) {
     const name = quality.name?.toLowerCase() || '';
 
@@ -534,8 +782,13 @@ async function startStream(channel, retryCount = 0) {
 
             hls = new Hls({ debug: false, enableWorker: true, lowLatencyMode: true });
             setupHlsEvents(hls);
-            // Auto select best quality (usually index 0 from server sort)
-            hls.loadSource(qualities[0].url);
+
+            // 최고 비디오 화질 선택 (오디오 전용 제외)
+            const bestIndex = findBestVideoQualityIndex(qualities);
+            currentQualityIndex = bestIndex;
+            console.log('[Player] Selected quality:', getQualityDisplayName(qualities[bestIndex]));
+
+            hls.loadSource(qualities[bestIndex].url);
             hls.attachMedia(video);
 
             // 검은 화면 감지 타이머
@@ -605,7 +858,10 @@ async function startStream(channel, retryCount = 0) {
         updateQualityMenu();
         startQualityWatch(); // 화질 목록 정기 감시 시작
 
-        loadChatIframe(channel);
+        // Popout 모드가 아닐 때만 채팅 로드
+        if (!isPopoutMode()) {
+            loadChatIframe(channel);
+        }
 
     } catch (e) {
         console.error(e);
@@ -644,7 +900,12 @@ function retryVideoStream(channel, retryCount) {
 
             hls = new Hls({ debug: false, enableWorker: true, lowLatencyMode: true });
             setupHlsEvents(hls);
-            hls.loadSource(qualities[0].url);
+
+            // 최고 비디오 화질 선택 (오디오 전용 제외)
+            const bestIndex = findBestVideoQualityIndex(qualities);
+            currentQualityIndex = bestIndex;
+
+            hls.loadSource(qualities[bestIndex].url);
             hls.attachMedia(video);
 
             let retryStarted = false;
@@ -691,6 +952,11 @@ function init() {
     if (!currentChannel) {
         showError('채널 정보가 없습니다. (?channel=...)');
         return;
+    }
+
+    // Popout 모드 체크 및 UI 설정
+    if (isPopoutMode()) {
+        setupPopoutMode();
     }
 
     setupControls();
@@ -787,7 +1053,8 @@ function init() {
         }
     });
 
-    if (window.innerWidth > 1000) {
+    // Popout 모드가 아닐 때만 채팅 표시
+    if (!isPopoutMode() && window.innerWidth > 1000) {
         const app = elements.app();
         if (app) app.classList.add('chat-visible');
     }

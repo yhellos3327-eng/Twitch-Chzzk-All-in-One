@@ -1,6 +1,6 @@
-// AI Captions Module - 실시간 자막 (영상 오디오 → STT)
+// AI Captions Module - 실시간 자막 + 한국어 번역
 // =====================================================
-// 영상의 오디오를 캡처하여 Deepgram STT로 실시간 변환
+// 영상의 오디오를 캡처하여 Deepgram STT로 변환 후 한국어로 번역
 
 import { AudioEnhancer } from './audio-enhancer.js';
 
@@ -15,7 +15,7 @@ export const Captions = {
     audioContext: null,
     sourceNode: null,
     processorNode: null,
-    streamDestination: null,
+    gainNode: null,
 
     // Deepgram STT
     sttSocket: null,
@@ -25,7 +25,10 @@ export const Captions = {
     fontSize: 'medium',
     position: 'bottom',
     bgOpacity: 0.85,
-    language: 'ko',
+
+    // 언어 설정: 자동 감지 후 한국어로 번역
+    sourceLanguage: 'multi',  // 소스 언어 (multi = 다국어 자동 감지)
+    translateToKorean: true,  // 한국어 번역 활성화
 
     // 상태
     isConnecting: false,
@@ -49,6 +52,7 @@ export const Captions = {
             <div class="caption-text-wrapper">
                 <div class="caption-history"></div>
                 <div class="caption-current"></div>
+                <div class="caption-translated"></div>
             </div>
             <div class="caption-status">
                 <span class="caption-listening"></span>
@@ -88,8 +92,8 @@ export const Captions = {
 
             this.isActive = true;
             this.isConnecting = false;
-            this.updateStatus('듣는 중...');
-            console.log('[Captions] Started - Video audio capture active');
+            this.updateStatus('듣는 중... (자동 감지 → 한글)');
+            console.log('[Captions] Started - Auto-detect + Korean translation');
 
         } catch (e) {
             console.error('[Captions] Start failed:', e);
@@ -129,7 +133,6 @@ export const Captions = {
 
                 const stream = AudioEnhancer.getStream?.();
                 if (stream) {
-                    // AudioEnhancer 스트림을 새 context에서 사용
                     this.sourceNode = this.audioContext.createMediaStreamSource(stream);
                     console.log('[Captions] Using AudioEnhancer stream');
                 } else {
@@ -140,8 +143,9 @@ export const Captions = {
             }
         }
 
-        // 원본 오디오도 들리도록 destination 연결
-        this.sourceNode.connect(this.audioContext.destination);
+        // GainNode 생성 (오디오 출력용 - 1개만 destination에 연결)
+        this.gainNode = this.audioContext.createGain();
+        this.gainNode.gain.value = 1.0;
 
         // ScriptProcessor로 오디오 데이터 추출 (16kHz, mono)
         const bufferSize = 4096;
@@ -161,19 +165,28 @@ export const Captions = {
             this.sttSocket.send(pcmData.buffer);
         };
 
-        this.sourceNode.connect(this.processorNode);
-        // processorNode는 destination에 연결하지 않아도 onaudioprocess가 호출됨
-        // 하지만 연결해야 브라우저가 처리함
-        this.processorNode.connect(this.audioContext.destination);
+        // 오디오 체인 구성 (소리 중첩 방지)
+        // Source -> GainNode -> Destination (오디오 출력)
+        // Source -> Processor (STT 데이터 추출, destination 미연결)
+        this.sourceNode.connect(this.gainNode);
+        this.gainNode.connect(this.audioContext.destination);
 
-        console.log('[Captions] Audio capture setup complete');
+        // Processor는 데이터 추출만 하고 destination에 연결하지 않음
+        this.sourceNode.connect(this.processorNode);
+        // processorNode를 빈 GainNode에 연결 (onaudioprocess 호출을 위해 필요)
+        const silentGain = this.audioContext.createGain();
+        silentGain.gain.value = 0; // 무음
+        this.processorNode.connect(silentGain);
+        silentGain.connect(this.audioContext.destination);
+
+        console.log('[Captions] Audio capture setup complete (no audio duplication)');
     },
 
     async connectSTT() {
         return new Promise((resolve, reject) => {
+            // Deepgram 파라미터 설정
             const params = new URLSearchParams({
                 model: 'nova-2',
-                language: this.language,
                 punctuate: 'true',
                 interim_results: 'true',
                 endpointing: '300',
@@ -183,12 +196,23 @@ export const Captions = {
                 channels: '1'
             });
 
+            // 다국어 자동 감지 + 한국어 번역
+            if (this.translateToKorean) {
+                // detect_language: 다국어 자동 감지
+                // language: 없음 (자동 감지)
+                params.set('detect_language', 'true');
+                params.set('translate', 'ko'); // 한국어로 번역
+            } else {
+                params.set('language', this.sourceLanguage);
+            }
+
             const wsUrl = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
+            console.log('[Captions] Connecting with translation to Korean');
 
             this.sttSocket = new WebSocket(wsUrl, ['token', this.apiKey]);
 
             this.sttSocket.onopen = () => {
-                console.log('[Captions] Deepgram connected');
+                console.log('[Captions] Deepgram connected (auto-detect + Korean translation)');
                 resolve();
             };
 
@@ -205,7 +229,6 @@ export const Captions = {
                 console.log('[Captions] Deepgram disconnected:', event.code, event.reason);
                 if (this.isActive && event.code !== 1000) {
                     this.updateStatus('재연결 중...');
-                    // 재연결 시도
                     setTimeout(() => {
                         if (this.isActive) {
                             this.connectSTT().catch(e => {
@@ -232,19 +255,24 @@ export const Captions = {
             const channel = data.channel;
             if (!channel?.alternatives?.[0]) return;
 
-            const transcript = channel.alternatives[0].transcript;
+            const alt = channel.alternatives[0];
+            const transcript = alt.transcript;
             if (!transcript) return;
 
             const isFinal = data.is_final;
 
-            // 자막 표시
-            this.showCaption(transcript, isFinal);
+            // 감지된 언어 정보
+            const detectedLang = data.metadata?.detected_language || channel.detected_language;
+
+            // 번역된 텍스트 표시
+            this.showCaption(transcript, isFinal, detectedLang);
 
             if (isFinal && transcript.trim()) {
                 this.addToHistory(transcript);
             }
 
-            console.log(`[Captions] ${isFinal ? '✓' : '...'} ${transcript}`);
+            const langInfo = detectedLang ? ` [${detectedLang}]` : '';
+            console.log(`[Captions] ${isFinal ? '✓' : '...'}${langInfo} ${transcript}`);
         }
     },
 
@@ -283,25 +311,25 @@ export const Captions = {
 
         // Processor 연결 해제
         if (this.processorNode) {
-            try {
-                this.processorNode.disconnect();
-            } catch (e) { }
+            try { this.processorNode.disconnect(); } catch (e) { }
             this.processorNode = null;
+        }
+
+        // GainNode 연결 해제
+        if (this.gainNode) {
+            try { this.gainNode.disconnect(); } catch (e) { }
+            this.gainNode = null;
         }
 
         // Source 연결 해제
         if (this.sourceNode) {
-            try {
-                this.sourceNode.disconnect();
-            } catch (e) { }
+            try { this.sourceNode.disconnect(); } catch (e) { }
             this.sourceNode = null;
         }
 
         // AudioContext 닫기
         if (this.audioContext) {
-            try {
-                this.audioContext.close();
-            } catch (e) { }
+            try { this.audioContext.close(); } catch (e) { }
             this.audioContext = null;
         }
     },
@@ -314,6 +342,23 @@ export const Captions = {
         }
     },
 
+    // 번역 모드 토글
+    toggleTranslation() {
+        this.translateToKorean = !this.translateToKorean;
+        this.saveSettings();
+
+        const msg = this.translateToKorean
+            ? '한국어 번역 활성화'
+            : '원본 언어 표시';
+        this.showNotification(msg, 'info');
+
+        // 실행 중이면 재시작
+        if (this.isActive) {
+            this.stop();
+            setTimeout(() => this.start(), 500);
+        }
+    },
+
     // API 키 입력 프롬프트
     promptApiKey() {
         const savedKey = localStorage.getItem('deepgramApiKey') || '';
@@ -322,22 +367,31 @@ export const Captions = {
         dialog.id = 'caption-api-dialog';
         dialog.innerHTML = `
             <div class="caption-api-content">
-                <h3>🎤 Deepgram API 키 설정</h3>
-                <p>실시간 자막을 사용하려면 Deepgram API 키가 필요합니다.</p>
+                <h3>🎤 실시간 자막 설정</h3>
+                <p>영상 음성을 자동으로 인식하고 한국어로 번역합니다.</p>
                 <p class="caption-api-hint">
                     <a href="https://deepgram.com" target="_blank">deepgram.com</a>에서
-                    무료로 API 키를 발급받을 수 있습니다. ($200 무료 크레딧)
+                    무료 API 키를 발급받으세요. ($200 크레딧 제공)
                 </p>
-                <input type="password" id="caption-api-input" placeholder="API 키 입력" value="${savedKey}" />
+                <input type="password" id="caption-api-input" placeholder="Deepgram API 키" value="${savedKey}" />
+
+                <div class="caption-option">
+                    <label>
+                        <input type="checkbox" id="caption-translate-toggle" ${this.translateToKorean ? 'checked' : ''} />
+                        <span>다국어 자동 감지 + 한국어 번역</span>
+                    </label>
+                </div>
+
                 <div class="caption-api-buttons">
                     <button class="cancel">취소</button>
-                    <button class="confirm">저장 및 시작</button>
+                    <button class="confirm">시작</button>
                 </div>
             </div>
         `;
 
         // 스타일
         const style = document.createElement('style');
+        style.id = 'caption-dialog-style';
         style.textContent = `
             #caption-api-dialog {
                 position: fixed;
@@ -383,7 +437,7 @@ export const Captions = {
             #caption-api-input {
                 width: 100%;
                 padding: 14px 16px;
-                margin: 8px 0 20px;
+                margin: 8px 0 16px;
                 background: rgba(255, 255, 255, 0.08);
                 border: 1px solid rgba(255, 255, 255, 0.15);
                 border-radius: 10px;
@@ -395,6 +449,25 @@ export const Captions = {
             }
             #caption-api-input:focus {
                 border-color: #a855f7;
+            }
+            .caption-option {
+                margin-bottom: 20px;
+                padding: 12px;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+            }
+            .caption-option label {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                cursor: pointer;
+                font-size: 13px;
+                color: rgba(255, 255, 255, 0.9);
+            }
+            .caption-option input[type="checkbox"] {
+                width: 18px;
+                height: 18px;
+                accent-color: #a855f7;
             }
             .caption-api-buttons {
                 display: flex;
@@ -435,19 +508,24 @@ export const Captions = {
         document.body.appendChild(dialog);
 
         const input = dialog.querySelector('#caption-api-input');
+        const translateToggle = dialog.querySelector('#caption-translate-toggle');
         input.focus();
 
-        dialog.querySelector('.cancel').onclick = () => {
+        const closeDialog = () => {
             dialog.remove();
             style.remove();
             this.captionContainer?.classList.remove('active');
         };
 
+        dialog.querySelector('.cancel').onclick = closeDialog;
+
         dialog.querySelector('.confirm').onclick = () => {
             const key = input.value.trim();
             if (key) {
                 this.apiKey = key;
+                this.translateToKorean = translateToggle.checked;
                 localStorage.setItem('deepgramApiKey', key);
+                this.saveSettings();
                 dialog.remove();
                 style.remove();
                 this.start();
@@ -459,12 +537,11 @@ export const Captions = {
 
         input.onkeydown = (e) => {
             if (e.key === 'Enter') dialog.querySelector('.confirm').click();
-            if (e.key === 'Escape') dialog.querySelector('.cancel').click();
+            if (e.key === 'Escape') closeDialog();
         };
 
-        // 외부 클릭 시 닫기
         dialog.onclick = (e) => {
-            if (e.target === dialog) dialog.querySelector('.cancel').click();
+            if (e.target === dialog) closeDialog();
         };
     },
 
@@ -480,19 +557,28 @@ export const Captions = {
         }
     },
 
-    showCaption(text, isFinal) {
+    showCaption(text, isFinal, detectedLang = null) {
         const current = this.captionContainer?.querySelector('.caption-current');
         if (current) {
             current.textContent = text;
             current.classList.toggle('interim', !isFinal);
+
+            // 감지된 언어 표시 (옵션)
+            if (detectedLang && this.translateToKorean) {
+                current.setAttribute('data-lang', detectedLang.toUpperCase());
+            } else {
+                current.removeAttribute('data-lang');
+            }
         }
     },
 
     clearCaption() {
         const current = this.captionContainer?.querySelector('.caption-current');
         const history = this.captionContainer?.querySelector('.caption-history');
+        const translated = this.captionContainer?.querySelector('.caption-translated');
         if (current) current.textContent = '';
         if (history) history.innerHTML = '';
+        if (translated) translated.textContent = '';
         this.captionHistory = [];
     },
 
@@ -543,17 +629,6 @@ export const Captions = {
         this.saveSettings();
     },
 
-    setLanguage(lang) {
-        this.language = lang;
-        this.saveSettings();
-
-        // 실행 중이면 재시작
-        if (this.isActive) {
-            this.stop();
-            setTimeout(() => this.start(), 500);
-        }
-    },
-
     loadSettings() {
         try {
             const saved = localStorage.getItem('captionSettings');
@@ -562,7 +637,7 @@ export const Captions = {
                 this.fontSize = settings.fontSize || 'medium';
                 this.position = settings.position || 'bottom';
                 this.bgOpacity = settings.bgOpacity || 0.85;
-                this.language = settings.language || 'ko';
+                this.translateToKorean = settings.translateToKorean !== false; // 기본값 true
             }
             this.apiKey = localStorage.getItem('deepgramApiKey') || '';
         } catch (e) { }
@@ -573,7 +648,7 @@ export const Captions = {
             fontSize: this.fontSize,
             position: this.position,
             bgOpacity: this.bgOpacity,
-            language: this.language
+            translateToKorean: this.translateToKorean
         };
         localStorage.setItem('captionSettings', JSON.stringify(settings));
     },
